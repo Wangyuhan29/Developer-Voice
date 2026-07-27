@@ -534,6 +534,10 @@ function updateRangeUI() {
   const thumb = $("#rangeThumb");
   thumb.style.left = `${state.start / total * 100}%`;
   thumb.style.width = `${Math.max(2, (state.end - state.start) / total * 100)}%`;
+  const rangeMap = $("#rangeMap");
+  const centerPercent = Math.round(((state.start + state.end) / 2) / total * 100);
+  rangeMap.setAttribute("aria-valuenow", String(centerPercent));
+  rangeMap.setAttribute("aria-valuetext", `${allMonths[state.start]} 至 ${allMonths[state.end]}`);
   const labels = { year: "年度详细度", quarter: "季度详细度", month: "月度详细度" };
   $("#granularityLabel").textContent = labels[state.granularity];
   const filter = state.keyword ? ` · 关键词：${state.keyword}` : "";
@@ -707,6 +711,73 @@ viewport.addEventListener("keydown", event => {
   else if (event.key === "+" || event.key === "=") setRange(state.start + Math.ceil(span*.1), state.end - Math.ceil(span*.1));
   else if (event.key === "-") setRange(state.start - Math.ceil(span*.1), state.end + Math.ceil(span*.1));
   else return;
+  event.preventDefault();
+});
+
+const rangeMap = $("#rangeMap");
+const rangeThumb = $("#rangeThumb");
+let rangeDragging = false;
+let rangePointerStart = 0;
+let rangeOriginalStart = 0;
+let rangeOriginalEnd = 0;
+
+function beginRangeDrag(event) {
+  event.preventDefault();
+  const total = allMonths.length - 1;
+  const span = state.end - state.start;
+  const rect = rangeMap.getBoundingClientRect();
+
+  if (event.target !== rangeThumb) {
+    const selectedIndex = Math.round(clamp((event.clientX - rect.left) / rect.width, 0, 1) * total);
+    state.start = clamp(selectedIndex - Math.round(span / 2), 0, total - span);
+    state.end = state.start + span;
+    renderAll();
+  }
+
+  rangeDragging = true;
+  rangePointerStart = event.clientX;
+  rangeOriginalStart = state.start;
+  rangeOriginalEnd = state.end;
+  rangeMap.classList.add("dragging");
+  rangeMap.setPointerCapture(event.pointerId);
+}
+
+function moveRangeDrag(event) {
+  if (!rangeDragging) return;
+  event.preventDefault();
+  const total = allMonths.length - 1;
+  const span = rangeOriginalEnd - rangeOriginalStart;
+  const rect = rangeMap.getBoundingClientRect();
+  const deltaMonths = Math.round((event.clientX - rangePointerStart) / rect.width * total);
+  state.start = clamp(rangeOriginalStart + deltaMonths, 0, total - span);
+  state.end = state.start + span;
+  renderAll();
+}
+
+function endRangeDrag(event) {
+  if (!rangeDragging) return;
+  rangeDragging = false;
+  rangeMap.classList.remove("dragging");
+  if (rangeMap.hasPointerCapture(event.pointerId)) rangeMap.releasePointerCapture(event.pointerId);
+}
+
+rangeMap.addEventListener("pointerdown", beginRangeDrag);
+rangeMap.addEventListener("pointermove", moveRangeDrag);
+rangeMap.addEventListener("pointerup", endRangeDrag);
+rangeMap.addEventListener("pointercancel", endRangeDrag);
+rangeMap.addEventListener("keydown", event => {
+  const step = event.shiftKey ? 12 : 3;
+  const span = state.end - state.start;
+  let nextStart;
+  if (event.key === "ArrowLeft") nextStart = state.start - step;
+  else if (event.key === "ArrowRight") nextStart = state.start + step;
+  else if (event.key === "Home") nextStart = 0;
+  else if (event.key === "End") {
+    nextStart = allMonths.length - 1 - span;
+  } else return;
+  state.start = clamp(nextStart, 0, allMonths.length - 1 - span);
+  state.end = state.start + span;
+  renderAll();
   event.preventDefault();
 });
 
