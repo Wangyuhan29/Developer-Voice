@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="开发者之声——面向 GitHub 工程社区的细粒度情感分析平台" />
+    <title>Developer Voice · Rust 社区洞察</title>
+    <script>
+      (() => {
+        const preference = localStorage.getItem("developer-voice-theme") || "system";
+        const resolved = preference === "system"
+          ? (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark")
+          : preference;
+        document.documentElement.dataset.theme = resolved;
+      })();
+    </script>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <aside class="sidebar">
+      <a class="brand" href="#" aria-label="开发者之声首页">
+        <span class="brand-mark">DV</span>
+        <span><strong>Developer Voice</strong><small>工程社区情感分析平台</small></span>
+      </a>
+
+      <nav class="side-nav" aria-label="分析导航">
+        <button class="active" data-target="overview"><i>⌂</i><span>总览分析</span></button>
+        <button data-target="timelinePanel"><i>⌁</i><span>趋势与事件</span></button>
+        <button data-target="dimensionPanel"><i>◇</i><span>维度画像</span></button>
+        <button data-target="keywordPanel"><i>#</i><span>问题洞察</span></button>
+      </nav>
+
+      <button class="side-help" id="guideButton"><i>?</i><span>查看交互指南</span></button>
+    </aside>
+
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="date-control">
+          <span>时间范围</span>
+          <div class="date-inputs">
+            <input id="startDate" type="month" min="2010-01" max="2026-07" value="2021-01" aria-label="开始月份" />
+            <b>→</b>
+            <input id="endDate" type="month" min="2010-01" max="2026-07" value="2026-07" aria-label="结束月份" />
+          </div>
+        </div>
+
+        <div class="quick-ranges" aria-label="快速时间范围">
+          <button data-months="12">近 1 年</button>
+          <button data-months="36">近 3 年</button>
+          <button data-months="72" class="active">近 6 年</button>
+          <button data-months="all">全部</button>
+        </div>
+
+        <button class="refresh-button" id="refreshButton"><i>↻</i> 刷新数据</button>
+        <label class="theme-control" title="切换页面主题">
+          <span>◐</span>
+          <select id="themeSelect" aria-label="主题颜色">
+            <option value="light">浅色</option>
+            <option value="dark">深色</option>
+            <option value="system">跟随系统</option>
+          </select>
+        </label>
+      </header>
+
+      <main>
+        <section class="page-intro" id="overview">
+          <div>
+            <p>GITHUB COMMUNITY INTELLIGENCE</p>
+            <h1>Rust 社区情感总览</h1>
+            <span>从真实工程讨论中，观察技术口碑、开发者痛点与生态变化</span>
+          </div>
+          <div class="sync-state" id="syncState"><i></i> 正在连接数据仓库…</div>
+        </section>
+
+        <section class="metric-grid" aria-label="项目核心指标">
+          <article>
+            <div class="metric-label"><span>项目健康指数</span><i class="metric-icon purple">⌁</i></div>
+            <div class="metric-value"><strong id="healthValue">82</strong><small>/ 100</small></div>
+            <div class="metric-change"><b>↑ 5.3%</b><span>较上一周期</span></div>
+          </article>
+          <article>
+            <div class="metric-label"><span>分析语料</span><i class="metric-icon cyan">▤</i></div>
+            <div class="metric-value"><strong id="corpusValue">438,522</strong><small>条</small></div>
+            <div class="metric-change"><b>↑ 12.6%</b><span>Issue / PR / 评论</span></div>
+          </article>
+          <article>
+            <div class="metric-label"><span>负面问题</span><i class="metric-icon red">!</i></div>
+            <div class="metric-value"><strong id="issueValue">30,912</strong><small>个</small></div>
+            <div class="metric-change"><b class="warning">↑ 8.7%</b><span>需要持续关注</span></div>
+          </article>
+          <article>
+            <div class="metric-label"><span>活跃贡献者</span><i class="metric-icon blue">♙</i></div>
+            <div class="metric-value"><strong id="contributorValue">1,256</strong><small>人</small></div>
+            <div class="metric-change"><b>↑ 9.5%</b><span>较上一周期</span></div>
+          </article>
+        </section>
+
+        <section class="panel timeline-panel" id="timelinePanel">
+          <div class="panel-head">
+            <div>
+              <span class="panel-index">01</span>
+              <div><h2>情感趋势与 Rust 事件时间线</h2><p>情感倾向：-2 强烈消极 · 0 中性 · 2 强烈积极</p></div>
+            </div>
+            <div class="timeline-toolbar">
+              <label>分析维度
+                <select id="dimensionSelect"></select>
+              </label>
+              <div class="granularity">
+                <button data-scale="year">按年</button>
+                <button data-scale="quarter" class="active">按季</button>
+                <button data-scale="month">按月</button>
+              </div>
+              <button class="tool-button" id="resetView">重置</button>
+            </div>
+          </div>
+
+          <div class="link-banner" id="linkBanner">
+            <div><i></i><span id="linkMessage">当前展示：整体情感 · 2021.01—2026.07</span></div>
+            <button id="clearFilter" hidden>清除联动筛选 ×</button>
+          </div>
+
+          <div class="timeline-viewport" id="timelineViewport" tabindex="0">
+            <svg id="timelineSvg" role="img" aria-label="可缩放拖动的 Rust 社区情感时间线"></svg>
+            <div class="timeline-instruction">
+              <span>↕ 滚轮调整详细度</span><i></i><span>↔ 左右拖动时间</span><i></i><span>点击节点查看事件</span>
+            </div>
+            <div class="chart-tooltip" id="chartTooltip" hidden></div>
+            <aside class="panel event-detail event-detail-float" id="eventDetail" hidden>
+              <button class="event-detail-close" id="closeEventDetail" aria-label="关闭事件解读">×</button>
+              <div class="panel-head small">
+                <div><span class="panel-index">EVENT</span><div><h2>事件影响解读</h2><p>与当前选中的时间线事件同步</p></div></div>
+                <span class="event-type" id="eventType">LANGUAGE</span>
+              </div>
+              <div class="event-date" id="eventDate">2024.11</div>
+              <h3 id="eventTitle">Rust 2024 Edition 就绪</h3>
+              <p id="eventDescription">语言一致性与迁移体验继续改善，相关讨论中对工程可维护性的正向反馈明显增加。</p>
+              <div class="impact-box">
+                <div><span>事件影响</span><b id="impactValue">+0.34</b></div>
+                <div class="impact-track"><i id="impactBar" style="width:74%"></i></div>
+                <small id="impactLabel">Maintainability 正向情感提升</small>
+              </div>
+              <div class="event-keywords" id="eventKeywords"></div>
+              <div class="event-analysis">
+                <div class="analysis-title"><span>事件窗口情感构成</span><small>事件前后 30 天</small></div>
+                <div class="event-sentiment-grid">
+                  <div><i class="positive"></i><span>积极</span><strong id="eventPositive">58%</strong></div>
+                  <div><i class="neutral"></i><span>中性</span><strong id="eventNeutral">27%</strong></div>
+                  <div><i class="negative"></i><span>消极</span><strong id="eventNegative">15%</strong></div>
+                </div>
+                <div class="source-breakdown">
+                  <div><span>Issue</span><i><b id="eventIssueBar"></b></i><strong id="eventIssueValue">48%</strong></div>
+                  <div><span>PR</span><i><b id="eventPrBar"></b></i><strong id="eventPrValue">31%</strong></div>
+                  <div><span>Comment</span><i><b id="eventCommentBar"></b></i><strong id="eventCommentValue">21%</strong></div>
+                </div>
+              </div>
+            </aside>
+          </div>
+
+          <div class="timeline-bottom">
+            <div class="legend">
+              <span><i class="line-sample"></i>情感倾向得分（-2 ～ 2）</span>
+              <span><i class="event-sample release"></i>Rust 语言事件</span>
+              <span><i class="event-sample community"></i>社区事件</span>
+            </div>
+            <div class="range-map" id="rangeMap"><i id="rangeThumb"></i></div>
+            <span id="granularityLabel">季度详细度</span>
+          </div>
+        </section>
+
+        <section class="analytics-grid">
+          <article class="panel dimension-panel" id="dimensionPanel">
+            <div class="panel-head small">
+              <div><span class="panel-index">02</span><div><h2>16 维情感画像</h2><p>点击维度可联动主时间线</p></div></div>
+              <div class="radar-selector">
+                <button class="radar-selector-button" id="radarSelectorButton" aria-expanded="false">
+                  雷达维度 <b id="radarSelectionCount">16 / 16</b><i>⌄</i>
+                </button>
+                <div class="radar-selector-menu" id="radarSelectorMenu" hidden>
+                  <div class="radar-menu-head">
+                    <div><strong>选择画像维度</strong><span>至少选择 3 项</span></div>
+                    <button id="closeRadarSelector" aria-label="关闭">×</button>
+                  </div>
+                  <div class="radar-options" id="radarDimensionOptions"></div>
+                  <div class="radar-menu-footer">
+                    <span id="radarSelectionHint">已选择 16 项</span>
+                    <div>
+                      <button id="selectCoreRadar">核心 8 维</button>
+                      <button id="selectAllRadar">全部选择</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="dimension-layout">
+              <div class="radar-wrap">
+                <svg id="radarSvg" viewBox="0 0 440 360" aria-label="可选择维度的情感画像雷达图"></svg>
+                <strong id="radarScore">4.18<small>综合得分</small></strong>
+              </div>
+              <div class="dimension-rank-section">
+                <div class="analysis-title"><span>当前维度得分</span><small>TOP 8 · 点击可联动时间线</small></div>
+                <div class="rank-list" id="rankList"></div>
+              </div>
+            </div>
+          </article>
+
+        </section>
+
+        <section class="analytics-grid lower">
+          <article class="panel keyword-panel" id="keywordPanel">
+            <div class="panel-head small">
+              <div><span class="panel-index">03</span><div><h2>高频问题关键词</h2><p>点击关键词定位关联时间与事件</p></div></div>
+              <select id="sentimentSelect" aria-label="关键词情感筛选">
+                <option value="negative">负面问题</option>
+                <option value="all">全部情感</option>
+                <option value="positive">正面反馈</option>
+              </select>
+            </div>
+            <div class="keyword-content-grid">
+              <div class="keyword-cloud" id="keywordCloud"></div>
+              <aside class="keyword-ranking">
+                <div class="analysis-title"><span>问题热度排行</span><small>TOP 6</small></div>
+                <div class="keyword-rank-list" id="keywordRankList"></div>
+                <div class="sentiment-overview">
+                  <div class="analysis-title"><span>当前情感构成</span><small id="sentimentSampleCount">12,640 条</small></div>
+                  <div class="sentiment-stack">
+                    <i class="negative" id="keywordNegativeBar"></i>
+                    <i class="neutral" id="keywordNeutralBar"></i>
+                    <i class="positive" id="keywordPositiveBar"></i>
+                  </div>
+                  <div class="sentiment-stack-labels">
+                    <span><i class="negative"></i>消极 <b id="keywordNegativeValue">42%</b></span>
+                    <span><i class="neutral"></i>中性 <b id="keywordNeutralValue">31%</b></span>
+                    <span><i class="positive"></i>积极 <b id="keywordPositiveValue">27%</b></span>
+                  </div>
+                </div>
+              </aside>
+            </div>
+            <div class="keyword-summary">
+              <div><span>当前关联问题</span><strong id="keywordIssueCount">7,842</strong></div>
+              <p id="keywordInsight">编译速度与错误信息是当前时间窗口中最集中的开发体验问题。</p>
+            </div>
+          </article>
+        </section>
+
+        <footer>
+          <span>开发者之声 · 南京大学大学生创新训练计划</span>
+          <span>数据范围：GitHub 公开 Issue、PR 与评论 · 页面数据为原型演示</span>
+        </footer>
+      </main>
+    </div>
+
+    <dialog id="guideDialog">
+      <button id="closeGuide" class="dialog-close" aria-label="关闭">×</button>
+      <span class="dialog-kicker">INTERACTION GUIDE</span>
+      <h2>所有板块都从时间线出发</h2>
+      <div class="guide-grid">
+        <div><b>01</b><strong>缩放时间</strong><p>在主图滚动鼠标滚轮，以指针位置为中心切换年度、季度和月度详细度。</p></div>
+        <div><b>02</b><strong>拖动浏览</strong><p>按住主图左右拖动，日期、统计卡、热力图与关键词将同步刷新。</p></div>
+        <div><b>03</b><strong>点击联动</strong><p>选择维度、事件或关键词，其他板块会高亮同一主题的关联信息。</p></div>
+      </div>
+    </dialog>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
