@@ -1,3 +1,4 @@
+import { aspects, mockAnalytics } from "./aspects.js";
 /**
  * 前端拟造数据仓库
  *
@@ -5,7 +6,7 @@
  * - 原型输入：id, text
  * - 原型输出：label（0 negative / 1 neutral / 2 positive）
  *
- * 为后续时序与 16 维分析扩展：
+ * 为后续时序与 13 类分析扩展：
  * repository_id, created_at, dimension, confidence, model_version。
  */
 
@@ -15,12 +16,7 @@ const monthDistance = (start, end) => {
   return Math.max(1, (ey - sy) * 12 + em - sm + 1);
 };
 
-const dimensions = [
-  "performance", "security", "reliability", "maintainability",
-  "community", "documentation", "feature", "usability",
-  "ownership", "type_system", "learning_curve", "compile_time",
-  "error_message", "ecosystem", "tooling", "api_design"
-];
+const dimensions = aspects.map(item => item.id);
 
 export const mockWarehouse = Object.freeze({
   repository_dim: [
@@ -50,12 +46,12 @@ export const mockWarehouse = Object.freeze({
   ],
 
   sentiment_prediction_fact: [
-    { prediction_id: 1, source_id: 103120, repository_id: 1, created_at: "2025-01-14T08:30:00Z", dimension: "usability", label: 0, confidence: .91, model_version: "distilbert-demo-v0.1" },
-    { prediction_id: 2, source_id: 184071, repository_id: 1, created_at: "2025-02-07T12:10:00Z", dimension: "ecosystem", label: 1, confidence: .76, model_version: "distilbert-demo-v0.1" },
-    { prediction_id: 3, source_id: 2321, repository_id: 1, created_at: "2025-03-16T03:20:00Z", dimension: "tooling", label: 2, confidence: .88, model_version: "distilbert-demo-v0.1" },
-    { prediction_id: 4, source_id: 76878, repository_id: 1, created_at: "2025-04-09T14:42:00Z", dimension: "reliability", label: 1, confidence: .81, model_version: "distilbert-demo-v0.1" },
-    { prediction_id: 5, source_id: 448324, repository_id: 1, created_at: "2025-05-22T18:05:00Z", dimension: "maintainability", label: 2, confidence: .84, model_version: "distilbert-demo-v0.1" },
-    { prediction_id: 6, source_id: 23073, repository_id: 1, created_at: "2025-06-11T09:17:00Z", dimension: "documentation", label: 0, confidence: .73, model_version: "distilbert-demo-v0.1" }
+    { prediction_id: 1, source_id: 103120, repository_id: 1, created_at: "2025-01-14T08:30:00Z", dimension: "api_extensibility", label: 0, confidence: .91, model_version: "distilbert-demo-v0.1" },
+    { prediction_id: 2, source_id: 184071, repository_id: 1, created_at: "2025-02-07T12:10:00Z", dimension: "libraries_frameworks", label: 1, confidence: .76, model_version: "distilbert-demo-v0.1" },
+    { prediction_id: 3, source_id: 2321, repository_id: 1, created_at: "2025-03-16T03:20:00Z", dimension: "tooling_documentation", label: 2, confidence: .88, model_version: "distilbert-demo-v0.1" },
+    { prediction_id: 4, source_id: 76878, repository_id: 1, created_at: "2025-04-09T14:42:00Z", dimension: "safety", label: 1, confidence: .81, model_version: "distilbert-demo-v0.1" },
+    { prediction_id: 5, source_id: 448324, repository_id: 1, created_at: "2025-05-22T18:05:00Z", dimension: "readability_maintainability", label: 2, confidence: .84, model_version: "distilbert-demo-v0.1" },
+    { prediction_id: 6, source_id: 23073, repository_id: 1, created_at: "2025-06-11T09:17:00Z", dimension: "tooling_documentation", label: 0, confidence: .73, model_version: "distilbert-demo-v0.1" }
   ],
 
   sentiment_label_dim: [
@@ -99,7 +95,12 @@ export const mockWarehouseQueries = {
     const health = Math.round(80 + Math.sin(months * .11 + phase) * 3);
     return wait({
       filters: { start_date, end_date, dimension, sentiment },
+      analytics: mockAnalytics(monthDistance("2010-01", start_date) - 1, monthDistance("2010-01", end_date) - 1),
       summary: {
+        total_count: Math.round(438522 * (.18 + coverage * .82)),
+        valid_count: Math.round(438522 * (.18 + coverage * .82) * .72),
+        positive_count: Math.round(438522 * (.18 + coverage * .82) * .72 * .34),
+        negative_count: Math.round(30912 * (.2 + coverage * .8)),
         health_index: health,
         corpus_count: Math.round(438522 * (.18 + coverage * .82)),
         negative_issue_count: Math.round(30912 * (.2 + coverage * .8)),

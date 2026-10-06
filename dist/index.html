@@ -14,8 +14,8 @@
         document.documentElement.dataset.theme = resolved;
       })();
     </script>
-    <script type="module" crossorigin src="/assets/index-DTAvViiT.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-BsxEIT9s.css">
+    <script type="module" crossorigin src="/assets/index-C8NjxFnm.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-DjTCRNiw.css">
   </head>
   <body>
     <aside class="sidebar">
@@ -28,7 +28,7 @@
         <button class="active" data-target="overview"><i>⌂</i><span>总览分析</span></button>
         <button data-target="timelinePanel"><i>⌁</i><span>趋势与事件</span></button>
         <button data-target="dimensionPanel"><i>◇</i><span>维度画像</span></button>
-        <button data-target="keywordPanel"><i>#</i><span>问题洞察</span></button>
+        
       </nav>
 
       <button class="side-help" id="guideButton"><i>?</i><span>查看交互指南</span></button>
@@ -74,43 +74,23 @@
         </section>
 
         <section class="metric-grid" aria-label="项目核心指标">
-          <article>
-            <div class="metric-label"><span>项目健康指数</span><i class="metric-icon purple">⌁</i></div>
-            <div class="metric-value"><strong id="healthValue">82</strong><small>/ 100</small></div>
-            <div class="metric-change"><b>↑ 5.3%</b><span>较上一周期</span></div>
-          </article>
-          <article>
-            <div class="metric-label"><span>分析语料</span><i class="metric-icon cyan">▤</i></div>
-            <div class="metric-value"><strong id="corpusValue">438,522</strong><small>条</small></div>
-            <div class="metric-change"><b>↑ 12.6%</b><span>Issue / PR / 评论</span></div>
-          </article>
-          <article>
-            <div class="metric-label"><span>负面问题</span><i class="metric-icon red">!</i></div>
-            <div class="metric-value"><strong id="issueValue">30,912</strong><small>个</small></div>
-            <div class="metric-change"><b class="warning">↑ 8.7%</b><span>需要持续关注</span></div>
-          </article>
-          <article>
-            <div class="metric-label"><span>活跃贡献者</span><i class="metric-icon blue">♙</i></div>
-            <div class="metric-value"><strong id="contributorValue">1,256</strong><small>人</small></div>
-            <div class="metric-change"><b>↑ 9.5%</b><span>较上一周期</span></div>
-          </article>
+          <article><div class="metric-label"><span>总数据量</span><i class="metric-icon purple">▤</i></div><div class="metric-value"><strong id="totalDataValue">—</strong><small>条</small></div><div class="metric-change"><span>全部采集语料</span></div></article>
+          <article><div class="metric-label"><span>有效数据量</span><i class="metric-icon cyan">✓</i></div><div class="metric-value"><strong id="validDataValue">—</strong><small>条</small></div><div class="metric-change"><span>清洗后可用于分析的语料</span></div></article>
+          <article><div class="metric-label"><span>正向数据量</span><i class="metric-icon blue">+</i></div><div class="metric-value"><strong id="positiveDataValue">—</strong><small>条</small></div><div class="metric-change"><span>正面情感语料</span></div></article>
+          <article><div class="metric-label"><span>负面问题量</span><i class="metric-icon red">!</i></div><div class="metric-value"><strong id="negativeDataValue">—</strong><small>条</small></div><div class="metric-change"><span>负面情感语料</span></div></article>
         </section>
 
         <section class="panel timeline-panel" id="timelinePanel">
           <div class="panel-head">
             <div>
               <span class="panel-index">01</span>
-              <div><h2>情感趋势与 Rust 事件时间线</h2><p>情感倾向：-2 强烈消极 · 0 中性 · 2 强烈积极</p></div>
+              <div><h2>情感趋势与 Rust 事件时间线</h2><p>情感评分 −1 ～ 1：（正面数量 − 负面数量）÷ 总量</p></div>
             </div>
             <div class="timeline-toolbar">
               <label>分析维度
                 <select id="dimensionSelect"></select>
               </label>
-              <div class="granularity">
-                <button data-scale="year">按年</button>
-                <button data-scale="quarter" class="active">按季</button>
-                <button data-scale="month">按月</button>
-              </div>
+              <div class="timeline-dates"><label><span>起始年月</span><div class="date-inputs"><input id="timelineStart" type="month" min="2010-01" max="2026-07" aria-label="时间线起始年月"></div></label><b>→</b><label><span>截止年月</span><div class="date-inputs"><input id="timelineEnd" type="month" min="2010-01" max="2026-07" aria-label="时间线截止年月"></div></label></div>
               <button class="tool-button" id="resetView">重置</button>
             </div>
           </div>
@@ -159,7 +139,7 @@
 
           <div class="timeline-bottom">
             <div class="legend">
-              <span><i class="line-sample"></i>情感倾向得分（-2 ～ 2）</span>
+              <span><i class="line-sample"></i>情感评分（−1 ～ 1）</span>
               <span><i class="event-sample release"></i>Rust 语言事件</span>
               <span><i class="event-sample community"></i>社区事件</span>
             </div>
@@ -170,78 +150,15 @@
 
         <section class="analytics-grid">
           <article class="panel dimension-panel" id="dimensionPanel">
-            <div class="panel-head small">
-              <div><span class="panel-index">02</span><div><h2>16 维情感画像</h2><p>点击维度可联动主时间线</p></div></div>
-              <div class="radar-selector">
-                <button class="radar-selector-button" id="radarSelectorButton" aria-expanded="false">
-                  雷达维度 <b id="radarSelectionCount">16 / 16</b><i>⌄</i>
-                </button>
-                <div class="radar-selector-menu" id="radarSelectorMenu" hidden>
-                  <div class="radar-menu-head">
-                    <div><strong>选择画像维度</strong><span>至少选择 3 项</span></div>
-                    <button id="closeRadarSelector" aria-label="关闭">×</button>
-                  </div>
-                  <div class="radar-options" id="radarDimensionOptions"></div>
-                  <div class="radar-menu-footer">
-                    <span id="radarSelectionHint">已选择 16 项</span>
-                    <div>
-                      <button id="selectCoreRadar">核心 8 维</button>
-                      <button id="selectAllRadar">全部选择</button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="dimension-layout">
-              <div class="radar-wrap">
-                <svg id="radarSvg" viewBox="0 0 440 360" aria-label="可选择维度的情感画像雷达图"></svg>
-                <strong id="radarScore">4.18<small>综合得分</small></strong>
-              </div>
-              <div class="dimension-rank-section">
-                <div class="analysis-title"><span>当前维度得分</span><small>TOP 8 · 点击可联动时间线</small></div>
-                <div class="rank-list" id="rankList"></div>
-              </div>
-            </div>
-          </article>
-
-        </section>
-
-        <section class="analytics-grid lower">
-          <article class="panel keyword-panel" id="keywordPanel">
-            <div class="panel-head small">
-              <div><span class="panel-index">03</span><div><h2>高频问题关键词</h2><p>点击关键词定位关联时间与事件</p></div></div>
-              <select id="sentimentSelect" aria-label="关键词情感筛选">
-                <option value="negative">负面问题</option>
-                <option value="all">全部情感</option>
-                <option value="positive">正面反馈</option>
-              </select>
-            </div>
-            <div class="keyword-content-grid">
-              <div class="keyword-cloud" id="keywordCloud"></div>
-              <aside class="keyword-ranking">
-                <div class="analysis-title"><span>问题热度排行</span><small>TOP 6</small></div>
-                <div class="keyword-rank-list" id="keywordRankList"></div>
-                <div class="sentiment-overview">
-                  <div class="analysis-title"><span>当前情感构成</span><small id="sentimentSampleCount">12,640 条</small></div>
-                  <div class="sentiment-stack">
-                    <i class="negative" id="keywordNegativeBar"></i>
-                    <i class="neutral" id="keywordNeutralBar"></i>
-                    <i class="positive" id="keywordPositiveBar"></i>
-                  </div>
-                  <div class="sentiment-stack-labels">
-                    <span><i class="negative"></i>消极 <b id="keywordNegativeValue">42%</b></span>
-                    <span><i class="neutral"></i>中性 <b id="keywordNeutralValue">31%</b></span>
-                    <span><i class="positive"></i>积极 <b id="keywordPositiveValue">27%</b></span>
-                  </div>
-                </div>
-              </aside>
-            </div>
-            <div class="keyword-summary">
-              <div><span>当前关联问题</span><strong id="keywordIssueCount">7,842</strong></div>
-              <p id="keywordInsight">编译速度与错误信息是当前时间窗口中最集中的开发体验问题。</p>
-            </div>
+            <div class="panel-head small"><div><span class="panel-index">02</span><div><h2>13 大类情感画像</h2><p>点击分类名称或扇区，查看选定时间范围内的情感数量与关键词</p></div></div><span id="profileTotal"></span></div>
+            <p class="profile-note">分类占比按方面标注次数统计；一条文本可涉及多个方面。</p>
+            <div class="profile-charts"><div><h3>分类数据占比</h3><svg id="pieSvg" viewBox="0 0 600 420" role="img" aria-label="13 大类方面占比饼状图"></svg></div><div><h3>各类情感评分</h3><svg id="topicRadarSvg" viewBox="0 0 600 420" role="img" aria-label="13 类情感评分雷达图"></svg><p class="score-note">中心 −1 · 中间环 0 · 外圈 1</p></div></div>
+            <div class="profile-topics"><h3>Topic分类、占比与评分</h3><div class="topic-table-head"><span>Topic 分类</span><span>占比</span><span>评分</span></div><div id="categoryLegend" class="category-legend"></div></div>
           </article>
         </section>
+        <aside id="categoryPopover" class="category-popover panel" role="dialog" aria-modal="false" aria-labelledby="categoryTitle" hidden>
+          <button id="closeCategory" class="event-detail-close" aria-label="关闭分类详情">×</button><h2 id="categoryTitle"></h2><p id="categoryRange"></p><div class="category-total">该类总数据量 <strong id="categoryTotal"></strong></div><div id="categoryDetails"></div>
+        </aside>
 
         <footer>
           <span>开发者之声 · 南京大学大学生创新训练计划</span>
@@ -255,9 +172,9 @@
       <span class="dialog-kicker">INTERACTION GUIDE</span>
       <h2>所有板块都从时间线出发</h2>
       <div class="guide-grid">
-        <div><b>01</b><strong>缩放时间</strong><p>在主图滚动鼠标滚轮，以指针位置为中心切换年度、季度和月度详细度。</p></div>
-        <div><b>02</b><strong>拖动浏览</strong><p>按住主图左右拖动，日期、统计卡、热力图与关键词将同步刷新。</p></div>
-        <div><b>03</b><strong>点击联动</strong><p>选择维度、事件或关键词，其他板块会高亮同一主题的关联信息。</p></div>
+        <div><b>01</b><strong>缩放时间</strong><p>在时间线右侧自由选择起止年月，也可以滚轮缩放时间范围。</p></div>
+        <div><b>02</b><strong>拖动浏览</strong><p>按住主图左右拖动，日期、统计卡、折线图与饼图将同步刷新。</p></div>
+        <div><b>03</b><strong>点击联动</strong><p>点击画像分类名称，查看该时间范围内的正面、中性、负面数量及关键词。</p></div>
       </div>
     </dialog>
 

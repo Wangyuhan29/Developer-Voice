@@ -1,3 +1,4 @@
+import { aspects, sentiments, mockAnalytics } from "./src/data/aspects.js";
 import { analyticsApi } from "./src/services/analyticsApi.js";
 
 const $ = selector => document.querySelector(selector);
@@ -13,25 +14,7 @@ let warehouseSnapshot = null;
 let warehouseSyncTimer;
 let warehouseRequestVersion = 0;
 
-const dimensions = [
-  { id: "overall", name: "整体情感", score: 4.18 },
-  { id: "performance", name: "Performance", score: 4.32 },
-  { id: "security", name: "Security", score: 3.86 },
-  { id: "reliability", name: "Reliability", score: 4.08 },
-  { id: "maintainability", name: "Maintainability", score: 4.21 },
-  { id: "community", name: "Community", score: 4.47 },
-  { id: "documentation", name: "Documentation", score: 4.39 },
-  { id: "feature", name: "Feature Support", score: 4.28 },
-  { id: "usability", name: "Usability", score: 3.91 },
-  { id: "ownership", name: "Ownership", score: 3.72 },
-  { id: "type_system", name: "Type System", score: 4.16 },
-  { id: "learning_curve", name: "Learning Curve", score: 3.38 },
-  { id: "compile_time", name: "Compile Time", score: 3.24 },
-  { id: "error_message", name: "Error Message", score: 4.02 },
-  { id: "ecosystem", name: "Ecosystem", score: 4.11 },
-  { id: "tooling", name: "Tooling", score: 4.25 },
-  { id: "api_design", name: "API Design", score: 3.96 }
-];
+const dimensions = [{ id: "overall", name: "全部方面", score: 4 }, ...aspects.map(item => ({ ...item, score: 4 }))];
 
 const keywordSets = {
   overall: [["compilation",98],["error",82],["memory",72],["build",66],["borrow",50],["cargo",47],["slow",42],["lifetime",39],["documentation",35],["thread",28],["windows",23],["docker",20]],
@@ -48,19 +31,19 @@ const keywordSets = {
 
 const events = [
   { date: "2010-07", title: "Rust 项目首次公开", type: "language", impact: .18, dimension: "community", description: "Mozilla 公开 Rust 项目，围绕内存安全、并发与性能开启系统语言探索。", keywords: ["community","memory safety","systems"] },
-  { date: "2014-03", title: "Cargo 成为官方包管理器", type: "language", impact: .27, dimension: "ecosystem", description: "统一依赖管理、构建与发布体验，为 Rust 工程生态形成共同基础。", keywords: ["cargo","build","ecosystem"] },
-  { date: "2015-05", title: "Rust 1.0 正式发布", type: "language", impact: .42, dimension: "reliability", description: "稳定版本确立内存安全、零成本抽象与无畏并发的核心承诺。", keywords: ["memory safety","ownership","stability"] },
-  { date: "2018-12", title: "Rust 2018 Edition", type: "language", impact: .31, dimension: "usability", description: "模块系统与工程体验进一步成熟，版本迁移机制开始形成稳定节奏。", keywords: ["edition","migration","modules"] },
-  { date: "2019-11", title: "async / await 稳定", type: "language", impact: .38, dimension: "performance", description: "异步语法进入稳定版本，高性能网络服务开发体验获得显著改善。", keywords: ["async","performance","runtime"] },
+  { date: "2014-03", title: "Cargo 成为官方包管理器", type: "language", impact: .27, dimension: "libraries_frameworks", description: "统一依赖管理、构建与发布体验，为 Rust 工程生态形成共同基础。", keywords: ["cargo","build","ecosystem"] },
+  { date: "2015-05", title: "Rust 1.0 正式发布", type: "language", impact: .42, dimension: "safety", description: "稳定版本确立内存安全、零成本抽象与无畏并发的核心承诺。", keywords: ["memory safety","ownership","stability"] },
+  { date: "2018-12", title: "Rust 2018 Edition", type: "language", impact: .31, dimension: "api_extensibility", description: "模块系统与工程体验进一步成熟，版本迁移机制开始形成稳定节奏。", keywords: ["edition","migration","modules"] },
+  { date: "2019-11", title: "async / await 稳定", type: "language", impact: .38, dimension: "runtime_performance", description: "异步语法进入稳定版本，高性能网络服务开发体验获得显著改善。", keywords: ["async","performance","runtime"] },
   { date: "2021-02", title: "Rust 基金会成立", type: "community", impact: .29, dimension: "community", description: "基金会独立运作，推动语言治理、基础设施与全球社区长期发展。", keywords: ["governance","community","foundation"] },
-  { date: "2021-10", title: "Rust 2021 Edition", type: "language", impact: .25, dimension: "maintainability", description: "闭包捕获、预导入和 Cargo 行为更新，继续强化工程一致性。", keywords: ["edition","cargo","migration"] },
-  { date: "2022-12", title: "Rust 进入 Linux 内核", type: "community", impact: .46, dimension: "security", description: "Linux 6.1 合入 Rust 初始支持，系统级基础设施开始正式接纳 Rust。", keywords: ["memory safety","linux","security"] },
-  { date: "2023-12", title: "async trait 稳定", type: "language", impact: .32, dimension: "feature", description: "异步 trait 能力进入稳定工具链，服务端与库设计讨论热度上升。", keywords: ["async","trait","API"] },
-  { date: "2024-02", title: "crates.io 安全策略升级", type: "community", impact: .21, dimension: "security", description: "生态供应链与包发布安全受到更多关注，安全主题讨论快速增长。", keywords: ["cargo","audit","security"] },
-  { date: "2024-11", title: "Rust 2024 Edition 就绪", type: "language", impact: .34, dimension: "maintainability", description: "语言一致性与迁移体验继续改善，工程可维护性的正向反馈增加。", keywords: ["edition","migration","readability"] },
+  { date: "2021-10", title: "Rust 2021 Edition", type: "language", impact: .25, dimension: "readability_maintainability", description: "闭包捕获、预导入和 Cargo 行为更新，继续强化工程一致性。", keywords: ["edition","cargo","migration"] },
+  { date: "2022-12", title: "Rust 进入 Linux 内核", type: "community", impact: .46, dimension: "safety", description: "Linux 6.1 合入 Rust 初始支持，系统级基础设施开始正式接纳 Rust。", keywords: ["memory safety","linux","security"] },
+  { date: "2023-12", title: "async trait 稳定", type: "language", impact: .32, dimension: "type_system", description: "异步 trait 能力进入稳定工具链，服务端与库设计讨论热度上升。", keywords: ["async","trait","API"] },
+  { date: "2024-02", title: "crates.io 安全策略升级", type: "community", impact: .21, dimension: "safety", description: "生态供应链与包发布安全受到更多关注，安全主题讨论快速增长。", keywords: ["cargo","audit","security"] },
+  { date: "2024-11", title: "Rust 2024 Edition 就绪", type: "language", impact: .34, dimension: "readability_maintainability", description: "语言一致性与迁移体验继续改善，工程可维护性的正向反馈增加。", keywords: ["edition","migration","readability"] },
   { date: "2025-05", title: "Rust 1.0 发布十周年", type: "community", impact: .28, dimension: "community", description: "社区回顾十年演进，安全、生产力与学习门槛成为讨论焦点。", keywords: ["community","learning","memory safety"] },
-  { date: "2026-03", title: "项目完成全量语料预测", type: "project", impact: .19, dimension: "overall", description: "细粒度情感分析流程覆盖 Rust 社区语料，16 个技术维度进入聚合展示阶段。", keywords: ["dataset","sentiment","visualization"] },
-  { date: "2026-06", title: "工程社区画像数据更新", type: "project", impact: .16, dimension: "documentation", description: "新增 Issue、PR 与评论数据，时间趋势和高频问题画像同步更新。", keywords: ["issue","documentation","data"] }
+  { date: "2026-03", title: "项目完成全量语料预测", type: "project", impact: .19, dimension: "overall", description: "细粒度情感分析流程覆盖 Rust 社区语料，13 个方面分类进入聚合展示阶段。", keywords: ["dataset","sentiment","visualization"] },
+  { date: "2026-06", title: "工程社区画像数据更新", type: "project", impact: .16, dimension: "tooling_documentation", description: "新增 Issue、PR 与评论数据，时间趋势和高频问题画像同步更新。", keywords: ["issue","documentation","data"] }
 ];
 
 const allMonths = [];
@@ -116,18 +99,21 @@ const sentimentAt = (monthIdx, dimension = state.dimension) => {
   return clamp(baseline + wave + evolution + eventLift, -2, 2);
 };
 
-const sentimentLabel = value => {
-  if (value <= -1.5) return "强烈消极";
-  if (value < -.35) return "消极";
-  if (value <= .35) return "中性";
-  if (value < 1.5) return "积极";
-  return "强烈积极";
-};
+function currentAnalytics() {
+  const filters = warehouseSnapshot?.filters;
+  if (filters?.start_date === allMonths[state.start] && filters?.end_date === allMonths[state.end] && warehouseSnapshot?.analytics) return warehouseSnapshot.analytics;
+  return analyticsApi.runtime.useMock ? mockAnalytics(state.start, state.end) : { trend: [], categories: [] };
+}
+const emotionScore = counts => counts.total ? (counts.positive - counts.negative) / counts.total : 0;
+function monthCounts(index) {
+  const row = currentAnalytics().trend.find(row => row.month === index || row.month === allMonths[index]);
+  return (state.dimension === "overall" ? row : row?.categories?.[state.dimension]) || { total: 0, positive: 0, neutral: 0, negative: 0 };
+}
 
 function populateControls() {
   $("#dimensionSelect").innerHTML = dimensions.map(item => `<option value="${item.id}">${item.name}</option>`).join("");
   $("#dimensionSelect").value = state.dimension;
-  renderRadarOptions();
+
 }
 
 function svgText(x, y, text, attrs = {}) {
@@ -149,7 +135,7 @@ function renderTimeline() {
 
   const visibleCount = Math.max(1, state.end - state.start);
   const x = index => margin.left + ((index - state.start) / visibleCount) * innerW;
-  const y = score => margin.top + ((2 - score) / 4) * innerH;
+  const y = score => margin.top + ((1 - score) / 2) * innerH;
 
   const defs = createSvg("defs");
   const areaGradient = createSvg("linearGradient", { id: "areaGradient", x1: "0", y1: "0", x2: "0", y2: "1" });
@@ -162,7 +148,7 @@ function renderTimeline() {
   defs.append(areaGradient, lineGradient);
   svg.append(defs);
 
-  for (let score = -2; score <= 2; score += 1) {
+  for (let score = -1; score <= 1; score += .5) {
     const gy = y(score);
     svg.append(createSvg("line", {
       x1: margin.left,
@@ -172,37 +158,23 @@ function renderTimeline() {
       stroke: score === 0 ? "rgba(151,137,255,.48)" : "rgba(132,154,193,.11)",
       "stroke-width": score === 0 ? 1.5 : 1
     }));
-    svg.append(svgText(margin.left - 16, gy + 3, score, { fill: "#63728b", "font-size": 10, "text-anchor": "middle" }));
+    svg.append(svgText(margin.left - 16, gy + 3, String(score), { fill: "#63728b", "font-size": 10, "text-anchor": "middle" }));
   }
 
   const points = [];
-  for (let i = state.start; i <= state.end; i += 1) points.push([x(i), y(sentimentAt(i))]);
-  const pointString = points.map(p => p.join(",")).join(" ");
-  const neutralY = y(0);
-  const areaPoints = `${margin.left},${neutralY} ${pointString} ${width - margin.right},${neutralY}`;
-  svg.append(createSvg("polygon", { points: areaPoints, fill: "url(#areaGradient)" }));
-  svg.append(createSvg("polyline", { points: pointString, fill: "none", stroke: "url(#lineGradient)", "stroke-width": 2.5, "stroke-linejoin": "round", "stroke-linecap": "round" }));
-
-  const tickStep = state.granularity === "year" ? 12 : state.granularity === "quarter" ? 3 : 1;
-  const adjustedStep = Math.max(tickStep, Math.ceil((state.end - state.start) / 12 / tickStep) * tickStep);
-  for (let i = state.start; i <= state.end; i += adjustedStep) {
-    const tx = x(i);
-    const label = allMonths[i];
-    svg.append(createSvg("line", { x1: tx, y1: height - margin.bottom, x2: tx, y2: height - margin.bottom + 5, stroke: "#596981" }));
-    svg.append(svgText(tx, height - margin.bottom + 20, adjustedStep >= 12 ? label.slice(0,4) : label.replace("-", "."), { fill: "#68778f", "font-size": 10, "text-anchor": "middle" }));
+  for (let i = state.start; i <= state.end; i++) {
+    const counts = monthCounts(i);
+    if (!counts.total) continue;
+    points.push([x(i), y(emotionScore(counts)), i]);
   }
-
-  const dotStep = state.granularity === "month" ? 1 : state.granularity === "quarter" ? 3 : 12;
-  points.forEach((point, pointIndex) => {
-    const dataIndex = state.start + pointIndex;
-    if ((dataIndex - state.start) % dotStep !== 0 && dataIndex !== state.end) return;
-    const dot = createSvg("circle", { cx: point[0], cy: point[1], r: 3.2, fill: "#8a70ff", stroke: "#c1b7ff", "stroke-width": 1, class: "trend-dot" });
-    dot.dataset.index = dataIndex;
-    dot.addEventListener("pointerenter", event => showTrendTooltip(event, dataIndex));
-    dot.addEventListener("pointerleave", hideTooltip);
-    svg.append(dot);
+  svg.append(createSvg("polyline", { points: points.map(p => p.slice(0,2).join(",")).join(" "), fill: "none", stroke: "url(#lineGradient)", "stroke-width": 2.5 }));
+  points.forEach(([cx, cy, index]) => {
+    const dot = createSvg("circle", { cx, cy, r: 3, fill: "#8065ff" });
+    dot.addEventListener("pointerenter", event => showTrendTooltip(event, index));
+    dot.addEventListener("pointerleave", hideTooltip); svg.append(dot);
   });
-
+  const step = Math.max(1, Math.ceil((state.end - state.start + 1) / 10));
+  for (let i = state.start; i <= state.end; i += step) svg.append(svgText(x(i), height - margin.bottom + 20, allMonths[i], { fill: "#68778f", "font-size": 10, "text-anchor": "middle" }));
   const hasKeywordEvent = state.keyword && events.some(event =>
     event.keywords.some(k => k.toLowerCase().includes(state.keyword.toLowerCase()) || state.keyword.toLowerCase().includes(k.toLowerCase()))
   );
@@ -215,7 +187,9 @@ function renderTimeline() {
   visibleEvents.forEach((event, index) => {
     const idx = monthIndex(event.date);
     const ex = x(idx);
-    const ey = y(sentimentAt(idx));
+    const counts = monthCounts(idx);
+    if (!counts.total) return;
+    const ey = y(emotionScore(counts));
     const selected = state.selectedEvent?.date === event.date && state.selectedEvent?.title === event.title;
     const color = event.type === "language" ? "#ff9b53" : event.type === "project" ? "#20d88b" : "#49bdf0";
     const lightTheme = document.documentElement.dataset.theme === "light";
@@ -267,8 +241,8 @@ function tooltipPosition(event) {
 function showTrendTooltip(event, index) {
   const tip = $("#chartTooltip");
   const pos = tooltipPosition(event);
-  const score = sentimentAt(index);
-  tip.innerHTML = `<span>${allMonths[index]}</span><strong>${score > 0 ? "+" : ""}${score.toFixed(2)}</strong><span>${dimensionName(state.dimension)} · ${sentimentLabel(score)}</span>`;
+  const counts = monthCounts(index);
+  tip.innerHTML = `<span>${allMonths[index]} · ${dimensionName(state.dimension)}</span><strong>情感评分 ${emotionScore(counts).toFixed(2)}</strong>${sentiments.map(s => `<span>${s.name}：${counts[s.key].toLocaleString()} 条（${counts.total ? (counts[s.key] / counts.total * 100).toFixed(1) : "0.0"}%）</span>`).join("")}`;
   tip.style.left = `${pos.left}px`; tip.style.top = `${pos.top}px`; tip.hidden = false;
 }
 function showEventTooltip(event, item) {
@@ -279,149 +253,77 @@ function showEventTooltip(event, item) {
 }
 function hideTooltip() { $("#chartTooltip").hidden = true; }
 
+const categoryColors = ["#8065ff", "#49bdf0", "#20b98b", "#efaa50", "#ed687b", "#b978e3", "#508dc9", "#75ae6e", "#dd8c65", "#659eab", "#ab91dd", "#a3ad55", "#c3779d"];
+let selectedCategory = null;
+const escapeHtml = value => String(value).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 function renderRadar() {
-  const svg = $("#radarSvg");
-  svg.innerHTML = "";
-  const items = state.radarDimensions.map(dimensionById);
-  const center = { x: 220, y: 180 }, radius = 132;
-  for (let level = 1; level <= 5; level += 1) {
-    const r = radius * level / 5;
-    const points = items.map((_, i) => {
-      const angle = -Math.PI / 2 + i * Math.PI * 2 / items.length;
-      return `${center.x + Math.cos(angle) * r},${center.y + Math.sin(angle) * r}`;
-    }).join(" ");
-    svg.append(createSvg("polygon", { points, fill: "none", stroke: "rgba(124,146,184,.16)", "stroke-width": 1 }));
-  }
+  const items = currentAnalytics().categories;
+  const total = items.reduce((sum, item) => sum + item.total, 0);
+  const svg = $("#pieSvg"); svg.innerHTML = "";
+  let angle = -Math.PI / 2;
+  const pieLabels = [];
   items.forEach((item, i) => {
-    const angle = -Math.PI / 2 + i * Math.PI * 2 / items.length;
-    const x2 = center.x + Math.cos(angle) * radius;
-    const y2 = center.y + Math.sin(angle) * radius;
-    svg.append(createSvg("line", { x1: center.x, y1: center.y, x2, y2, stroke: "rgba(124,146,184,.13)" }));
-    const labelR = radius + (items.length > 10 && i % 2 ? 23 : 17);
-    const cos = Math.cos(angle);
-    const anchor = cos > .25 ? "start" : cos < -.25 ? "end" : "middle";
-    const labelText = item.name
-      .replace("Maintainability","Maintain.")
-      .replace("Documentation","Docs")
-      .replace("Learning Curve","Learning")
-      .replace("Compile Time","Compile")
-      .replace("Error Message","Errors")
-      .replace("Feature Support","Features");
-    const label = svgText(center.x + cos * labelR, center.y + Math.sin(angle) * labelR + 3, labelText, {
-      fill: item.id === state.dimension ? "#a99aff" : "#77869d",
-      "font-size": items.length > 12 ? 8 : 9,
-      "text-anchor": anchor
+    if (!item.total || !total) return;
+    const next = angle + item.total / total * Math.PI * 2;
+    const point = t => `${300 + 130 * Math.cos(t)},${210 + 130 * Math.sin(t)}`;
+    const path = createSvg("path", { d: `M300,210 L${point(angle)} A130,130 0 ${next-angle > Math.PI ? 1 : 0},1 ${point(next)} Z`, fill: categoryColors[i], stroke: "var(--panel-bg, #fff)", "stroke-width": 2, tabindex: 0, role: "button", "aria-label": `${item.name} ${item.total} 条` });
+    path.addEventListener("click", () => openCategory(item.id));
+    path.addEventListener("keydown", event => { if (["Enter", " "].includes(event.key)) { event.preventDefault(); openCategory(item.id); } });
+    svg.append(path);
+    const middle = (angle + next) / 2;
+    pieLabels.push({ item, color:categoryColors[i], side:Math.cos(middle) >= 0 ? 1 : -1, x:300+130*Math.cos(middle), y:210+130*Math.sin(middle), targetY:210+155*Math.sin(middle) });
+    angle = next;
+  });
+  [-1,1].forEach(side => {
+    const labels = pieLabels.filter(label => label.side === side).sort((a,b)=>a.targetY-b.targetY);
+    labels.forEach((label,i)=> { label.labelY = Math.max(label.targetY, i ? labels[i-1].labelY+25 : 35); });
+    if (labels.length && labels.at(-1).labelY > 385) { const offset = labels.at(-1).labelY - 385; labels.forEach(label=>label.labelY-=offset); }
+    labels.forEach(label=> {
+      const endX = side > 0 ? 455 : 145;
+      svg.append(createSvg("polyline", { points:`${label.x},${label.y} ${300+side*150},${label.labelY} ${endX},${label.labelY}`, fill:"none",stroke:label.color,"stroke-width":1.3 }));
+      const text = svgText(endX + side*5,label.labelY+4,label.item.name || dimensionName(label.item.id), {fill:"#8190a6","font-size":12,"text-anchor":side>0?"start":"end",class:"pie-category-label",tabindex:0,role:"button"});
+      text.addEventListener("click",()=>openCategory(label.item.id));text.addEventListener("keydown",e=>{if(["Enter"," "].includes(e.key)){e.preventDefault();openCategory(label.item.id);}});svg.append(text);
     });
-    label.style.cursor = "pointer";
-    label.addEventListener("click", () => selectDimension(item.id));
-    svg.append(label);
   });
-  const valuePoints = items.map((item, i) => {
-    const angle = -Math.PI / 2 + i * Math.PI * 2 / items.length;
-    const value = scoreAt(Math.floor((state.start + state.end) / 2), item.id) / 5;
-    return `${center.x + Math.cos(angle) * radius * value},${center.y + Math.sin(angle) * radius * value}`;
-  }).join(" ");
-  svg.append(createSvg("polygon", { points: valuePoints, fill: "rgba(128,101,255,.22)", stroke: "#826bff", "stroke-width": 2 }));
-  valuePoints.split(" ").forEach(point => {
-    const [cx, cy] = point.split(",");
-    svg.append(createSvg("circle", { cx, cy, r: 2.5, fill: "#53b9fa" }));
-  });
-  const avg = items.reduce((sum, item) => sum + scoreAt(Math.floor((state.start + state.end) / 2), item.id), 0) / items.length;
-  $("#radarScore").childNodes[0].nodeValue = avg.toFixed(2);
-  updateRadarSelectorState();
-}
-
-function renderRadarOptions() {
-  $("#radarDimensionOptions").innerHTML = dimensions.slice(1).map(item => `
-    <label class="radar-option">
-      <input type="checkbox" value="${item.id}"${state.radarDimensions.includes(item.id) ? " checked" : ""}>
-      <span><i></i>${item.name}</span>
-    </label>`).join("");
-  $$("#radarDimensionOptions input").forEach(input => input.addEventListener("change", () => {
-    if (input.checked) {
-      if (!state.radarDimensions.includes(input.value)) state.radarDimensions.push(input.value);
-    } else if (state.radarDimensions.length > 3) {
-      state.radarDimensions = state.radarDimensions.filter(id => id !== input.value);
-    } else {
-      input.checked = true;
-      $("#radarSelectionHint").textContent = "雷达图至少需要 3 个维度";
-      window.setTimeout(updateRadarSelectorState, 1200);
-      return;
-    }
-    renderRadar();
-  }));
-  updateRadarSelectorState();
-}
-
-function updateRadarSelectorState() {
-  const count = state.radarDimensions.length;
-  $("#radarSelectionCount").textContent = `${count} / 16`;
-  $("#radarSelectionHint").textContent = `已选择 ${count} 项`;
-  $$("#radarDimensionOptions input").forEach(input => {
-    input.checked = state.radarDimensions.includes(input.value);
-  });
-}
-
-function renderRankings() {
-  const ranked = dimensions.slice(1)
-    .map(item => ({ ...item, current: scoreAt(Math.floor((state.start + state.end) / 2), item.id) }))
-    .sort((a,b) => b.current - a.current)
-    .slice(0, 8);
-  $("#rankList").innerHTML = ranked.map((item, i) => `
-    <div class="rank-item${item.id === state.dimension ? " active" : ""}" data-dimension="${item.id}">
-      <i>${String(i + 1).padStart(2,"0")}</i><span>${item.name}</span>
-      <div class="rank-track"><i style="width:${item.current / 5 * 100}%"></i></div><b>${item.current.toFixed(1)}</b>
-    </div>`).join("");
-  $$(".rank-item").forEach(item => item.addEventListener("click", () => selectDimension(item.dataset.dimension)));
-}
-
-function keywordsForDimension() {
-  const base = keywordSets[state.dimension] || keywordSets.overall;
-  if (state.sentiment === "positive") return base.map(([word, heat], i) => [i % 2 ? `clear ${word}` : word, Math.round(heat * .82)]);
-  if (state.sentiment === "all") return base.map(([word, heat]) => [word, Math.round(heat * .9)]);
-  return base;
-}
-
-function renderKeywords() {
-  const words = keywordsForDimension();
-  const cloudLayout = [
-    [50, 49, 1.12], [50, 24, .95], [30, 67, .88], [69, 67, .9],
-    [73, 31, .83], [34, 33, .82], [18, 49, .77], [82, 49, .76],
-    [50, 83, .72], [18, 74, .68], [82, 73, .66], [83, 18, .64]
-  ];
-  $("#keywordCloud").innerHTML = words.map(([word, heat], i) => {
-    const [x, y, scale] = cloudLayout[i % cloudLayout.length];
-    const size = (12 + heat * .21) * scale;
-    const tone = i < 3 ? "hot" : i < 6 ? "warm" : "";
-    return `<button class="keyword ${tone}${state.keyword === word ? " active" : ""}" data-word="${word}" style="left:${x}%;top:${y}%;font-size:${size}px;z-index:${Math.round(heat)}">${word}</button>`;
+  if (!total) svg.append(svgText(300,210, analyticsApi.runtime.useMock ? "暂无数据" : "等待后端分类统计数据", {"text-anchor":"middle",fill:"#68778f"}));
+  $("#categoryLegend").innerHTML = aspects.map((aspect, i) => {
+    const item = items.find(item => item.id === aspect.id);
+    return `<button class="category-row" data-category="${aspect.id}"><i style="background:${categoryColors[i]}"></i><span>${aspect.name}<small>${aspect.id}</small></span><b>${total && item ? (item.total / total * 100).toFixed(1) : "0.0"}%</b><b>${item?.total ? emotionScore(item).toFixed(2) : "暂无"}</b></button>`;
   }).join("");
-  $$(".keyword").forEach(button => button.addEventListener("click", () => selectKeyword(button.dataset.word)));
-  $("#keywordRankList").innerHTML = words.slice(0, 6).map(([word, heat], index) => {
-    const count = Math.round(heat * (61 + (state.end - state.start) * .7));
-    return `<button class="keyword-rank-row${state.keyword === word ? " active" : ""}" data-word="${word}">
-      <i>${String(index + 1).padStart(2, "0")}</i>
-      <span>${word}<small>${count.toLocaleString()} 次</small></span>
-      <b><i style="width:${heat}%"></i></b>
-    </button>`;
-  }).join("");
-  $$(".keyword-rank-row").forEach(button => button.addEventListener("click", () => selectKeyword(button.dataset.word)));
-  const negative = state.sentiment === "negative" ? 48 : state.sentiment === "positive" ? 18 : 36;
-  const positive = state.sentiment === "positive" ? 55 : state.sentiment === "negative" ? 21 : 32;
-  const neutral = 100 - negative - positive;
-  $("#keywordNegativeBar").style.width = `${negative}%`;
-  $("#keywordNeutralBar").style.width = `${neutral}%`;
-  $("#keywordPositiveBar").style.width = `${positive}%`;
-  $("#keywordNegativeValue").textContent = `${negative}%`;
-  $("#keywordNeutralValue").textContent = `${neutral}%`;
-  $("#keywordPositiveValue").textContent = `${positive}%`;
-  $("#sentimentSampleCount").textContent = `${Math.round((state.end - state.start + 1) * 188).toLocaleString()} 条`;
-  const top = words[0]?.[0] || "compilation";
-  $("#keywordIssueCount").textContent = Math.round((state.end - state.start + 1) * 117 * (state.keyword ? .42 : 1)).toLocaleString();
-  $("#keywordInsight").textContent = state.keyword
-    ? `“${state.keyword}” 已关联到主时间线；事件、趋势与当前维度将共同高亮。`
-    : `${top} 是当前时间窗口中最集中的${dimensionName(state.dimension)}问题。`;
+  $$(".category-row").forEach(button => button.addEventListener("click", () => openCategory(button.dataset.category)));
+  $("#profileTotal").textContent = `${total.toLocaleString()} 条方面标注`;
+  renderTopicScores(items);
+  if (selectedCategory) renderCategoryDetail();
+}
+function renderTopicScores(items) {
+  const svg = $("#topicRadarSvg"); svg.innerHTML = "";
+  const center = [300, 210], radius = 125;
+  const point = (index, r) => { const angle = -Math.PI / 2 + index * Math.PI * 2 / aspects.length; return [center[0] + Math.cos(angle) * r, center[1] + Math.sin(angle) * r]; };
+  for (let level = 0; level <= 4; level++) {
+    svg.append(createSvg("polygon", { points: aspects.map((_,i) => point(i, radius * level / 4).join(",")).join(" "), fill: "none", stroke: "#8190a644" }));
+    svg.append(svgText(305, 210 - radius * level / 4, String(-1 + level / 2), { fill: "#8190a6", "font-size": 10 }));
+  }
+  aspects.forEach((aspect, i) => {
+    const [x,y] = point(i,radius); svg.append(createSvg("line", { x1:300,y1:210,x2:x,y2:y,stroke:"#8190a633" }));
+    const [lx,ly] = point(i,radius + 23); svg.append(svgText(lx,ly+4,aspect.name, { fill: categoryColors[i],"font-size":12,"text-anchor":lx>320?"start":lx<280?"end":"middle" }));
+  });
+  // Missing categories keep a gap rather than receiving a made-up score.
+  const scores = aspects.map(aspect => items.find(item => item.id === aspect.id));
+  if (scores.every(item => item?.total)) svg.append(createSvg("polygon", { points: scores.map((item,i) => point(i,radius * (emotionScore(item)+1)/2).join(",")).join(" "), fill:"#8065ff22",stroke:"#8065ff","stroke-width":2.5 }));
+  scores.forEach((item,i) => { if (!item?.total) return; const [cx,cy] = point(i,radius*(emotionScore(item)+1)/2); const dot=createSvg("circle",{cx,cy,r:4,fill:categoryColors[i],tabindex:0,role:"button","aria-label":`${aspects[i].name} 评分 ${emotionScore(item).toFixed(2)}`}); dot.addEventListener("click",()=>openCategory(aspects[i].id)); dot.addEventListener("keydown",e=>{if(["Enter"," "].includes(e.key)){e.preventDefault();openCategory(aspects[i].id);}});svg.append(dot); });
+
 }
 
+function renderCategoryDetail() {
+  const item = currentAnalytics().categories.find(item => item.id === selectedCategory);
+  $("#categoryTitle").textContent = dimensionName(selectedCategory);
+  $("#categoryRange").textContent = `${allMonths[state.start]} 至 ${allMonths[state.end]} · ${analyticsApi.runtime.useMock ? "模拟数据" : "后端数据"}`;
+  $("#categoryTotal").textContent = item ? `${item.total.toLocaleString()} 条` : "暂无统计数据";
+  $("#categoryDetails").innerHTML = sentiments.map(s => `<section><h3><i style="background:${s.color}"></i>${s.name}<b>${(item?.[s.key] || 0).toLocaleString()} 条</b></h3><div>${(item?.keywords?.[s.key] || []).map(word => `<span>${escapeHtml(typeof word === "string" ? word : word.word)}</span>`).join("") || "暂无关键词"}</div></section>`).join("");
+}
+function openCategory(id) { selectedCategory = id; renderCategoryDetail(); $("#categoryPopover").hidden = false; $("#closeCategory").focus(); }
+function renderRankings() {}
+function renderKeywords() {}
 function renderEventDetail() {
   const selectedInRange = state.selectedEvent && monthIndex(state.selectedEvent.date) >= state.start && monthIndex(state.selectedEvent.date) <= state.end;
   const event = (selectedInRange ? state.selectedEvent : null) || events.filter(item => monthIndex(item.date) >= state.start && monthIndex(item.date) <= state.end).at(-1) || events[0];
@@ -475,18 +377,19 @@ function positionEventPopover() {
 }
 
 function updateMetrics() {
-  const ratio = (state.end - state.start + 1) / allMonths.length;
-  const center = Math.round((state.start + state.end) / 2);
-  const currentFilters = warehouseSnapshot?.filters;
-  const snapshotMatches = currentFilters
-    && currentFilters.start_date === allMonths[state.start]
-    && currentFilters.end_date === allMonths[state.end]
-    && currentFilters.dimension === state.dimension;
-  const summary = snapshotMatches ? warehouseSnapshot.summary : null;
-  $("#healthValue").textContent = summary?.health_index ?? Math.round(scoreAt(center) / 5 * 100);
-  $("#corpusValue").textContent = (summary?.corpus_count ?? Math.round(438522 * (.18 + ratio * .82))).toLocaleString();
-  $("#issueValue").textContent = (summary?.negative_issue_count ?? Math.round(30912 * (.2 + ratio * .8))).toLocaleString();
-  $("#contributorValue").textContent = (summary?.active_contributor_count ?? Math.round(1256 * (.38 + ratio * .62))).toLocaleString();
+  const filters = warehouseSnapshot?.filters;
+  const matches = filters?.start_date === allMonths[state.start]
+    && filters?.end_date === allMonths[state.end] && filters?.dimension === state.dimension;
+  const summary = matches ? warehouseSnapshot.summary : null;
+  const entries = [
+    ["totalDataValue", summary?.total_count ?? summary?.corpus_count],
+    ["validDataValue", summary?.valid_count],
+    ["positiveDataValue", summary?.positive_count],
+    ["negativeDataValue", summary?.negative_count ?? summary?.negative_issue_count]
+  ];
+  entries.forEach(([id, value]) => {
+    $(`#${id}`).textContent = Number.isFinite(value) ? value.toLocaleString() : "—";
+  });
 }
 
 function warehouseFilters() {
@@ -509,6 +412,8 @@ async function syncWarehouse() {
     if (requestVersion !== warehouseRequestVersion) return;
     warehouseSnapshot = snapshot;
     updateMetrics();
+    renderTimeline();
+    renderRadar();
     const updatedAt = new Date(snapshot.updated_at);
     const timeLabel = Number.isNaN(updatedAt.getTime())
       ? snapshot.updated_at
@@ -528,6 +433,8 @@ function scheduleWarehouseSync(delay = 320) {
 }
 
 function updateRangeUI() {
+  $("#timelineStart").value = allMonths[state.start];
+  $("#timelineEnd").value = allMonths[state.end];
   $("#startDate").value = allMonths[state.start];
   $("#endDate").value = allMonths[state.end];
   const total = allMonths.length - 1;
@@ -539,7 +446,7 @@ function updateRangeUI() {
   rangeMap.setAttribute("aria-valuenow", String(centerPercent));
   rangeMap.setAttribute("aria-valuetext", `${allMonths[state.start]} 至 ${allMonths[state.end]}`);
   const labels = { year: "年度详细度", quarter: "季度详细度", month: "月度详细度" };
-  $("#granularityLabel").textContent = labels[state.granularity];
+  $("#granularityLabel").textContent = "月度情感评分";
   const filter = state.keyword ? ` · 关键词：${state.keyword}` : "";
   $("#linkMessage").textContent = `当前展示：${dimensionName(state.dimension)} · ${allMonths[state.start].replace("-",".")}—${allMonths[state.end].replace("-",".")}${filter}`;
   $("#clearFilter").hidden = !state.keyword && state.dimension === "overall";
@@ -600,20 +507,19 @@ function selectEvent(event, pointerEvent = null) {
 }
 
 function setRange(start, end, source = "custom") {
-  state.start = clamp(Math.min(start, end - 1), 0, allMonths.length - 2);
-  state.end = clamp(Math.max(end, state.start + 1), 1, allMonths.length - 1);
+  state.start = clamp(Math.min(start, end), 0, allMonths.length - 1);
+  state.end = clamp(Math.max(start, end), 0, allMonths.length - 1);
   $$(".quick-ranges button").forEach(button => button.classList.toggle("active", button.dataset.months === source));
   renderAll();
 }
 
 $("#dimensionSelect").addEventListener("change", event => selectDimension(event.target.value));
-$("#sentimentSelect").addEventListener("change", event => { state.sentiment = event.target.value; state.keyword = null; renderKeywords(); updateRangeUI(); });
-$("#startDate").addEventListener("change", event => setRange(monthIndex(event.target.value), state.end));
-$("#endDate").addEventListener("change", event => setRange(state.start, monthIndex(event.target.value)));
+$("#startDate").addEventListener("change", event => { if (event.target.value) setRange(monthIndex(event.target.value), state.end); });
+$("#endDate").addEventListener("change", event => { if (event.target.value) setRange(state.start, monthIndex(event.target.value)); });
 $$(".quick-ranges button").forEach(button => button.addEventListener("click", () => {
   const value = button.dataset.months;
   if (value === "all") setRange(0, allMonths.length - 1, value);
-  else setRange(Math.max(0, allMonths.length - 1 - Number(value)), allMonths.length - 1, value);
+  else setRange(Math.max(0, allMonths.length - 1 - Number(value) + 1), allMonths.length - 1, value);
 }));
 $$(".granularity button").forEach(button => button.addEventListener("click", () => {
   state.granularity = button.dataset.scale;
@@ -627,34 +533,11 @@ $("#resetView").addEventListener("click", () => {
   renderAll();
 });
 $("#clearFilter").addEventListener("click", () => { state.keyword = null; state.dimension = "overall"; $("#dimensionSelect").value = "overall"; renderAll(); });
-const radarSelectorButton = $("#radarSelectorButton");
-const radarSelectorMenu = $("#radarSelectorMenu");
-function setRadarSelectorOpen(open) {
-  radarSelectorMenu.hidden = !open;
-  radarSelectorButton.setAttribute("aria-expanded", String(open));
-}
-radarSelectorButton.addEventListener("click", event => {
-  event.stopPropagation();
-  setRadarSelectorOpen(radarSelectorMenu.hidden);
-});
-$("#closeRadarSelector").addEventListener("click", () => setRadarSelectorOpen(false));
-$("#selectAllRadar").addEventListener("click", () => {
-  state.radarDimensions = dimensions.slice(1).map(item => item.id);
-  renderRadar();
-});
-$("#selectCoreRadar").addEventListener("click", () => {
-  state.radarDimensions = dimensions.slice(1, 9).map(item => item.id);
-  renderRadar();
-});
-radarSelectorMenu.addEventListener("click", event => event.stopPropagation());
-document.addEventListener("click", () => setRadarSelectorOpen(false));
-document.addEventListener("keydown", event => {
-  if (event.key === "Escape") {
-    setRadarSelectorOpen(false);
-    state.eventPopoverOpen = false;
-    $("#eventDetail").hidden = true;
-  }
-});
+$("#timelineStart").addEventListener("change", event => { if (event.target.value) setRange(monthIndex(event.target.value), state.end); });
+$("#timelineEnd").addEventListener("change", event => { if (event.target.value) setRange(state.start, monthIndex(event.target.value)); });
+$("#closeCategory").addEventListener("click", () => { selectedCategory = null; $("#categoryPopover").hidden = true; });
+document.addEventListener("pointerdown", event => { if (!event.target.closest("#categoryPopover, .category-row, .topic-score, #pieSvg, #topicRadarSvg")) { selectedCategory = null; $("#categoryPopover").hidden = true; } });
+document.addEventListener("keydown", event => { if (event.key === "Escape") { selectedCategory = null; $("#categoryPopover").hidden = true; state.eventPopoverOpen = false; $("#eventDetail").hidden = true; } });
 
 const viewport = $("#timelineViewport");
 let dragging = false, pointerStart = 0, originalStart = 0, originalEnd = 0;
@@ -856,3 +739,9 @@ window.addEventListener("resize", () => {
 populateControls();
 renderAll();
 syncNavigationWithScroll();
+
+// Open the native month picker from the entire date field, including its text.
+$$("input[type='month']").forEach(input => {
+  input.addEventListener("click", () => { if (typeof input.showPicker === "function") { try { input.showPicker(); } catch {} } });
+  input.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { if (typeof input.showPicker === "function") { try { input.showPicker(); event.preventDefault(); } catch {} } } });
+});
