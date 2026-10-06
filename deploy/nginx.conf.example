@@ -3,7 +3,7 @@ server {
     server_name _;
 
     # npm run build 生成的 dist 目录
-    root /var/www/developer-voice/dist;
+    root /var/www/developer-voice;
     index index.html;
 
     location / {
@@ -11,8 +11,9 @@ server {
     }
 
     # 前端统一访问 /api/v1；将地址替换为实际后端服务
-    location /api/ {
-        proxy_pass http://127.0.0.1:8000/api/;
+    location ^~ /api/ {
+        # 保留 /api/v1 前缀。前后端不同 Ubuntu 主机时，改为后端私网地址。
+        proxy_pass http://127.0.0.1:8000;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;

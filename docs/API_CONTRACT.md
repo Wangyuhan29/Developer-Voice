@@ -1,178 +1,71 @@
-# Developer Voice 数据仓库与 API 契约
+# Developer Voice 当前接口契约
 
-## 1. 当前后端原型
+前端 Developer-Voice 与后端 github-sentiment 并列。真实统计读取 sentiment_facts；
+Topic、关键词、事件、单文本推理继续为前端 mock。部署见 [Ubuntu 部署](ubuntu-deployment.md)。
 
-`distilbert-demo-first-training.zip` 中的模型是三分类 DistilBERT 调试版本：
+## 数据口径
 
-- 输入：`id`, `text`
-- 标签：`0 = negative`, `1 = neutral`, `2 = positive`
-- 模型：`distilbert-base-uncased`
-- 训练样本：100
-- epoch：5
-- max length：128
+查询表仅含 corpus_id、repository_id、created_at、aspect、sentiment。
+created_at 为 GitHub 原文创建时间，使用 UTC，明细返回带 Z 的 ISO 8601。
+方面采用 rust-aspects-v2 的 13 类；情感是 positive、neutral、negative 字符串。
+最新成功标注及空方面过滤在刷新表时完成；API 不解析原始标注 JSON。
 
-当前模型没有时间、仓库和 aspect 维度。数据仓库应在保存预测结果时补充这些业务字段。
-
-## 2. 推荐仓库结构
-
-### sentiment_prediction_fact
-
-| 字段 | 类型 | 说明 |
+| 页面卡片 | summary 字段 | 口径 |
 | --- | --- | --- |
-| prediction_id | bigint | 预测记录主键 |
-| source_id | bigint | 原始 Issue、PR 或评论 ID |
-| repository_id | bigint | 仓库外键 |
-| created_at | datetime | 原始内容发布时间 |
-| dimension | varchar(64) | 16 维 aspect；第一版允许为空 |
-| label | tinyint | 0 负面、1 中性、2 正面 |
-| confidence | decimal(6,5) | 预测置信度 |
-| model_version | varchar(64) | 模型版本 |
+| 已标注语料量 | total_count | COUNT(DISTINCT corpus_id) |
+| 方面标注量 | aspect_count | 查询表行数 |
+| 正向数据量 | positive_count | 至少有一个正面标签的去重语料数 |
+| 负面问题量 | negative_count | 至少有一个负面标签的去重语料数 |
 
-### repository_dim
+同一语料可能在不同方面既正面又负面；正负面数不能相加作为总语料数。
+valid_count 为旧接口兼容字段，等于 total_count，不表示全部清洗后语料。
+本次不提供原始采集总量、作者统计、模型置信度或模型版本。
 
-保存仓库名称、语言、创建时间和数据源。
+## HTTP 路由
 
-### model_registry
+前缀 /api/v1，真实业务接口仅支持 GET。
 
-保存模型名称、版本、标签映射、训练参数和上线状态。
+| 路由 | 返回 |
+| --- | --- |
+| /health | 查询表状态、UTC 时间范围、语料/方面数量，Topic 来源 mock |
+| /repositories | 查询表中的仓库 ID、名称和去重语料数 |
+| /analytics/dashboard | 顶部卡片、月序列、方面画像 |
+| /analytics/trend | 所选方面或 overall 的月度数量及情感得分 |
+| /analytics/dimensions | 时间和仓库范围内全部方面画像 |
+| /sentiment-facts | 五字段明细及下一页游标 |
 
-### sentiment_aggregate_monthly
+统计及明细接口必填 start_date、end_date，格式 YYYY-MM，包含两端月份。
+倒置范围自动排序；最长 600 个月；月份分组以 UTC 为准。
+可选 repository_id，不传表示全部仓库。
+dimension=overall 表示全部方面，其他值必须为有效 aspect。
+Dashboard 的 dimension 筛选顶部卡片；analytics 保留全部方面数据，
+前端按选定方面绘制折线，同时保留完整饼图和雷达图。
 
-建议由后端或离线任务预聚合：
+sentiment=all|positive|neutral|negative 在明细接口筛选行；Dashboard 和趋势保留三类数量，
+避免先过滤负面再计算情感评分。旧页面的 quarter/year 参数可接受，但响应始终按月。
+无数据月份及方面返回零值。得分为 (positive-negative)/total，total 为零时为零。
+画像和趋势统计方面提及次数，并非去重语料数。
 
-```text
-repository_id
-month
-dimension
-negative_count
-neutral_count
-positive_count
-sentiment_score
-issue_count
-pr_count
-comment_count
-```
+Dashboard 返回 source=sentiment_facts、timezone=UTC、filters、summary、updated_at、analytics。
+analytics.trend 的每项含 month（YYYY-MM）、total、positive、neutral、negative、categories；
+categories 是以 aspect 为键的三分类数量。analytics.categories 是方面列表，
+每项包含 id、name、total、positive、neutral、negative。total 等于三类数量之和。
+后端不提供关键词，前端在统计响应外合并 Topic mock 示例。
 
-前端趋势查询应读取聚合表，不应直接扫描完整预测明细。
+updated_at 是最后一次成功刷新查询表的完成时间，无刷新记录时为 null，
+不是最新 GitHub 讨论时间。统计默认缓存 30 秒，由 API_CACHE_SECONDS 配置。
+无效参数返回 422；数据库异常返回 503。前端显示错误并清空旧统计，不回退到 mock 计数。
 
-## 3. API
+明细 limit 为 1～1000，默认 100，按 (corpus_id, aspect) 排序。
+首次不传游标；响应 next_cursor 非空时，将 after_corpus_id、after_aspect
+原样与相同筛选条件传入下一页。items 每行仅含查询表五字段。
 
-所有时间使用 ISO 8601；月粒度参数使用 `YYYY-MM`。
+## Topic mock 接口
 
-### GET /api/v1/health
-
-返回数据源、模型版本与最近更新时间。
-
-### GET /api/v1/analytics/dashboard
-
-参数：
-
-```text
-start_date=2021-01
-end_date=2026-07
-dimension=overall
-sentiment=negative
-```
-
-返回：
-
-```json
-{
-  "summary": {
-    "health_index": 82,
-    "corpus_count": 438522,
-    "negative_issue_count": 30912,
-    "active_contributor_count": 1256
-  },
-  "repository": {
-    "repository_id": 1,
-    "full_name": "rust-lang/rust"
-  },
-  "model": {
-    "model_version": "distilbert-demo-v0.1",
-    "labels": {
-      "0": "negative",
-      "1": "neutral",
-      "2": "positive"
-    }
-  },
-  "updated_at": "2026-07-24T18:30:00+08:00"
-}
-```
-
-### GET /api/v1/analytics/trend
-
-附加参数：`granularity=month|quarter|year`。
-
-```json
-{
-  "dimension": "performance",
-  "series": [
-    {
-      "period": "2026-01",
-      "sentiment_score": 0.82,
-      "negative": 214,
-      "neutral": 601,
-      "positive": 487
-    }
-  ]
-}
-```
-
-### GET /api/v1/analytics/dimensions
-
-返回 16 个维度在当前时间窗口的画像得分和三类情感数量。维度画像仍使用 1—5 分制；时间趋势使用 -2—2 情感倾向分。
-
-### GET /api/v1/analytics/keywords
-
-参数包含 `dimension`、`sentiment`、`start_date`、`end_date`。
-
-### GET /api/v1/events
-
-返回 Rust 语言事件、社区事件和项目数据事件。
-
-### POST /api/v1/inference/sentiment
-
-请求：
-
-```json
-{
-  "text": "Rust is fast and reliable.",
-  "dimension": "performance"
-}
-```
-
-响应：
-
-```json
-{
-  "label": 2,
-  "label_name": "positive",
-  "confidence": 0.83,
-  "probabilities": {
-    "negative": 0.04,
-    "neutral": 0.13,
-    "positive": 0.83
-  },
-  "dimension": "performance",
-  "model_version": "distilbert-demo-v0.1"
-}
-```
-
-## 4. 前端切换真实后端
-
-复制 `.env.example` 为 `.env.production`：
-
-```env
-VITE_USE_MOCK=false
-VITE_API_BASE_URL=/api/v1
-VITE_API_TIMEOUT=12000
-```
-
-构建：
-
-```powershell
-npm.cmd run build
-```
-
-服务器托管 `dist`，并把 `/api/` 反向代理到后端服务。前端组件不需要修改。
+analyticsApi.getTopics(filters) 和 getKeywords(filters) 始终调用前端 mock，
+即使 VITE_USE_MOCK=false 也不向后端请求 Topic。返回 source=mock；
+主题只包含示例名称、方面和关键词，没有伪造数据库主题数量。
+真实模式的 Dashboard 请求层增加 topics 及 keywords_source=mock，
+统计数量及评分仍来自服务器；详情窗口标明“Topic 关键词为 mock”。
+原“Topic 分类”实际为 aspect，页面已改成“方面分类”。
+事件描述、影响数值、单文本推理保留原有演示实现，未接入真实模型接口。

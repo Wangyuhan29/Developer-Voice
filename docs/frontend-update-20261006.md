@@ -1,4 +1,7 @@
-# 本轮前端更新
+# 2026-10-06 前端更新（历史记录）
+
+2026-10-07 已新增查询表 API 连接，以下 mock 说明属于此前状态。
+当前约定以 [API 契约](API_CONTRACT.md) 和 [Ubuntu 部署](ubuntu-deployment.md) 为准。
 
 使用 rust-aspects-v2 的 13 个方面；情感编码为 0=negative、1=neutral、2=positive。
 时间范围包含起始月和截止月，支持单月。起止倒置时自动按时间顺序排列。

@@ -1,4 +1,5 @@
 import { aspects, sentiments, mockAnalytics } from "./src/data/aspects.js";
+import { events } from "./src/data/mockEvents.js";
 import { analyticsApi } from "./src/services/analyticsApi.js";
 
 const $ = selector => document.querySelector(selector);
@@ -29,25 +30,11 @@ const keywordSets = {
   error_message: [["error",100],["diagnostic",79],["compiler hint",67],["unclear",58],["trace",43],["suggestion",38]]
 };
 
-const events = [
-  { date: "2010-07", title: "Rust 项目首次公开", type: "language", impact: .18, dimension: "community", description: "Mozilla 公开 Rust 项目，围绕内存安全、并发与性能开启系统语言探索。", keywords: ["community","memory safety","systems"] },
-  { date: "2014-03", title: "Cargo 成为官方包管理器", type: "language", impact: .27, dimension: "libraries_frameworks", description: "统一依赖管理、构建与发布体验，为 Rust 工程生态形成共同基础。", keywords: ["cargo","build","ecosystem"] },
-  { date: "2015-05", title: "Rust 1.0 正式发布", type: "language", impact: .42, dimension: "safety", description: "稳定版本确立内存安全、零成本抽象与无畏并发的核心承诺。", keywords: ["memory safety","ownership","stability"] },
-  { date: "2018-12", title: "Rust 2018 Edition", type: "language", impact: .31, dimension: "api_extensibility", description: "模块系统与工程体验进一步成熟，版本迁移机制开始形成稳定节奏。", keywords: ["edition","migration","modules"] },
-  { date: "2019-11", title: "async / await 稳定", type: "language", impact: .38, dimension: "runtime_performance", description: "异步语法进入稳定版本，高性能网络服务开发体验获得显著改善。", keywords: ["async","performance","runtime"] },
-  { date: "2021-02", title: "Rust 基金会成立", type: "community", impact: .29, dimension: "community", description: "基金会独立运作，推动语言治理、基础设施与全球社区长期发展。", keywords: ["governance","community","foundation"] },
-  { date: "2021-10", title: "Rust 2021 Edition", type: "language", impact: .25, dimension: "readability_maintainability", description: "闭包捕获、预导入和 Cargo 行为更新，继续强化工程一致性。", keywords: ["edition","cargo","migration"] },
-  { date: "2022-12", title: "Rust 进入 Linux 内核", type: "community", impact: .46, dimension: "safety", description: "Linux 6.1 合入 Rust 初始支持，系统级基础设施开始正式接纳 Rust。", keywords: ["memory safety","linux","security"] },
-  { date: "2023-12", title: "async trait 稳定", type: "language", impact: .32, dimension: "type_system", description: "异步 trait 能力进入稳定工具链，服务端与库设计讨论热度上升。", keywords: ["async","trait","API"] },
-  { date: "2024-02", title: "crates.io 安全策略升级", type: "community", impact: .21, dimension: "safety", description: "生态供应链与包发布安全受到更多关注，安全主题讨论快速增长。", keywords: ["cargo","audit","security"] },
-  { date: "2024-11", title: "Rust 2024 Edition 就绪", type: "language", impact: .34, dimension: "readability_maintainability", description: "语言一致性与迁移体验继续改善，工程可维护性的正向反馈增加。", keywords: ["edition","migration","readability"] },
-  { date: "2025-05", title: "Rust 1.0 发布十周年", type: "community", impact: .28, dimension: "community", description: "社区回顾十年演进，安全、生产力与学习门槛成为讨论焦点。", keywords: ["community","learning","memory safety"] },
-  { date: "2026-03", title: "项目完成全量语料预测", type: "project", impact: .19, dimension: "overall", description: "细粒度情感分析流程覆盖 Rust 社区语料，13 个方面分类进入聚合展示阶段。", keywords: ["dataset","sentiment","visualization"] },
-  { date: "2026-06", title: "工程社区画像数据更新", type: "project", impact: .16, dimension: "tooling_documentation", description: "新增 Issue、PR 与评论数据，时间趋势和高频问题画像同步更新。", keywords: ["issue","documentation","data"] }
-];
+
 
 const allMonths = [];
-for (let year = 2010, month = 0; year < 2026 || (year === 2026 && month <= 6);) {
+const latestMonth = new Date().toISOString().slice(0, 7);
+for (let year = 2010, month = 0; `${year}-${String(month + 1).padStart(2, "0")}` <= latestMonth;) {
   allMonths.push(`${year}-${String(month + 1).padStart(2, "0")}`);
   month += 1;
   if (month === 12) { month = 0; year += 1; }
@@ -61,7 +48,7 @@ const monthIndex = value => {
 
 const state = {
   start: monthIndex("2021-01"),
-  end: monthIndex("2026-07"),
+  end: monthIndex(latestMonth),
   dimension: "overall",
   keyword: null,
   selectedEvent: events.find(event => event.date === "2024-11"),
@@ -101,7 +88,7 @@ const sentimentAt = (monthIdx, dimension = state.dimension) => {
 
 function currentAnalytics() {
   const filters = warehouseSnapshot?.filters;
-  if (filters?.start_date === allMonths[state.start] && filters?.end_date === allMonths[state.end] && warehouseSnapshot?.analytics) return warehouseSnapshot.analytics;
+  if (filters?.start_date === allMonths[state.start] && filters?.end_date === allMonths[state.end] && filters?.dimension === state.dimension && warehouseSnapshot?.analytics) return warehouseSnapshot.analytics;
   return analyticsApi.runtime.useMock ? mockAnalytics(state.start, state.end) : { trend: [], categories: [] };
 }
 const emotionScore = counts => counts.total ? (counts.positive - counts.negative) / counts.total : 0;
@@ -111,6 +98,7 @@ function monthCounts(index) {
 }
 
 function populateControls() {
+  ["#startDate", "#endDate", "#timelineStart", "#timelineEnd"].forEach(selector => { $(selector).max = latestMonth; });
   $("#dimensionSelect").innerHTML = dimensions.map(item => `<option value="${item.id}">${item.name}</option>`).join("");
   $("#dimensionSelect").value = state.dimension;
 
@@ -292,10 +280,10 @@ function renderRadar() {
   }).join("");
   $$(".category-row").forEach(button => button.addEventListener("click", () => openCategory(button.dataset.category)));
   $("#profileTotal").textContent = `${total.toLocaleString()} 条方面标注`;
-  renderTopicScores(items);
+  renderAspectScores(items);
   if (selectedCategory) renderCategoryDetail();
 }
-function renderTopicScores(items) {
+function renderAspectScores(items) {
   const svg = $("#topicRadarSvg"); svg.innerHTML = "";
   const center = [300, 210], radius = 125;
   const point = (index, r) => { const angle = -Math.PI / 2 + index * Math.PI * 2 / aspects.length; return [center[0] + Math.cos(angle) * r, center[1] + Math.sin(angle) * r]; };
@@ -317,7 +305,7 @@ function renderTopicScores(items) {
 function renderCategoryDetail() {
   const item = currentAnalytics().categories.find(item => item.id === selectedCategory);
   $("#categoryTitle").textContent = dimensionName(selectedCategory);
-  $("#categoryRange").textContent = `${allMonths[state.start]} 至 ${allMonths[state.end]} · ${analyticsApi.runtime.useMock ? "模拟数据" : "后端数据"}`;
+  $("#categoryRange").textContent = `${allMonths[state.start]} 至 ${allMonths[state.end]} · ${analyticsApi.runtime.useMock ? "模拟数据" : "查询表统计"} · Topic 关键词为 mock`;
   $("#categoryTotal").textContent = item ? `${item.total.toLocaleString()} 条` : "暂无统计数据";
   $("#categoryDetails").innerHTML = sentiments.map(s => `<section><h3><i style="background:${s.color}"></i>${s.name}<b>${(item?.[s.key] || 0).toLocaleString()} 条</b></h3><div>${(item?.keywords?.[s.key] || []).map(word => `<span>${escapeHtml(typeof word === "string" ? word : word.word)}</span>`).join("") || "暂无关键词"}</div></section>`).join("");
 }
@@ -383,7 +371,7 @@ function updateMetrics() {
   const summary = matches ? warehouseSnapshot.summary : null;
   const entries = [
     ["totalDataValue", summary?.total_count ?? summary?.corpus_count],
-    ["validDataValue", summary?.valid_count],
+    ["validDataValue", summary?.aspect_count ?? summary?.valid_count],
     ["positiveDataValue", summary?.positive_count],
     ["negativeDataValue", summary?.negative_count ?? summary?.negative_issue_count]
   ];
@@ -414,16 +402,20 @@ async function syncWarehouse() {
     updateMetrics();
     renderTimeline();
     renderRadar();
-    const updatedAt = new Date(snapshot.updated_at);
-    const timeLabel = Number.isNaN(updatedAt.getTime())
-      ? snapshot.updated_at
-      : updatedAt.toLocaleString("zh-CN", { hour12: false });
+    const updatedAt = snapshot.updated_at ? new Date(snapshot.updated_at) : null;
+    const timeLabel = updatedAt && !Number.isNaN(updatedAt.getTime())
+      ? updatedAt.toLocaleString("zh-CN", { hour12: false })
+      : "未记录刷新时间";
     syncState.classList.toggle("mock", analyticsApi.runtime.useMock);
     syncState.innerHTML = `<i></i> ${analyticsApi.runtime.useMock ? "模拟仓库" : "数据仓库"} · 更新于 ${timeLabel}`;
   } catch (error) {
     if (requestVersion !== warehouseRequestVersion) return;
+    warehouseSnapshot = null;
+    updateMetrics();
+    renderTimeline();
+    renderRadar();
     syncState.classList.add("error");
-    syncState.innerHTML = `<i></i> 数据接口暂不可用 · ${error.message}`;
+    syncState.innerHTML = `<i></i> 数据接口暂不可用 · ${escapeHtml(error.message)}`;
   }
 }
 
@@ -527,7 +519,7 @@ $$(".granularity button").forEach(button => button.addEventListener("click", () 
   renderTimeline();
 }));
 $("#resetView").addEventListener("click", () => {
-  state.start = monthIndex("2021-01"); state.end = monthIndex("2026-07"); state.dimension = "overall"; state.keyword = null; state.granularity = "quarter";
+  state.start = monthIndex("2021-01"); state.end = monthIndex(latestMonth); state.dimension = "overall"; state.keyword = null; state.granularity = "quarter";
   $("#dimensionSelect").value = "overall";
   $$(".granularity button").forEach(button => button.classList.toggle("active", button.dataset.scale === "quarter"));
   renderAll();

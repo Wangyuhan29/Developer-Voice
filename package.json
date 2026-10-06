@@ -4,9 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0",
+    "dev": "vite --host 127.0.0.1",
+    "tunnel": "node scripts/ssh-tunnel.mjs",
+    "tunnel:check": "node scripts/ssh-tunnel.mjs --check",
     "build": "vite build",
-    "preview": "vite preview --host 0.0.0.0"
+    "preview": "vite preview --host 127.0.0.1"
   },
   "devDependencies": {
     "vite": "^7.0.0"

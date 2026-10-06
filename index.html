@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="开发者之声——面向 GitHub 工程社区的细粒度情感分析平台" />
     <title>Developer Voice · Rust 社区洞察</title>
+    <link rel="icon" href="data:," />
     <script>
       (() => {
         const preference = localStorage.getItem("developer-voice-theme") || "system";
@@ -73,17 +74,17 @@
         </section>
 
         <section class="metric-grid" aria-label="项目核心指标">
-          <article><div class="metric-label"><span>总数据量</span><i class="metric-icon purple">▤</i></div><div class="metric-value"><strong id="totalDataValue">—</strong><small>条</small></div><div class="metric-change"><span>全部采集语料</span></div></article>
-          <article><div class="metric-label"><span>有效数据量</span><i class="metric-icon cyan">✓</i></div><div class="metric-value"><strong id="validDataValue">—</strong><small>条</small></div><div class="metric-change"><span>清洗后可用于分析的语料</span></div></article>
-          <article><div class="metric-label"><span>正向数据量</span><i class="metric-icon blue">+</i></div><div class="metric-value"><strong id="positiveDataValue">—</strong><small>条</small></div><div class="metric-change"><span>正面情感语料</span></div></article>
-          <article><div class="metric-label"><span>负面问题量</span><i class="metric-icon red">!</i></div><div class="metric-value"><strong id="negativeDataValue">—</strong><small>条</small></div><div class="metric-change"><span>负面情感语料</span></div></article>
+          <article><div class="metric-label"><span>已标注语料量</span><i class="metric-icon purple">▤</i></div><div class="metric-value"><strong id="totalDataValue">—</strong><small>条</small></div><div class="metric-change"><span>查询表中去重的语料</span></div></article>
+          <article><div class="metric-label"><span>方面标注量</span><i class="metric-icon cyan">✓</i></div><div class="metric-value"><strong id="validDataValue">—</strong><small>条</small></div><div class="metric-change"><span>一条语料可有多个方面</span></div></article>
+          <article><div class="metric-label"><span>正向数据量</span><i class="metric-icon blue">+</i></div><div class="metric-value"><strong id="positiveDataValue">—</strong><small>条</small></div><div class="metric-change"><span>含正面标签的去重语料</span></div></article>
+          <article><div class="metric-label"><span>负面问题量</span><i class="metric-icon red">!</i></div><div class="metric-value"><strong id="negativeDataValue">—</strong><small>条</small></div><div class="metric-change"><span>含负面标签的去重语料</span></div></article>
         </section>
 
         <section class="panel timeline-panel" id="timelinePanel">
           <div class="panel-head">
             <div>
               <span class="panel-index">01</span>
-              <div><h2>情感趋势与 Rust 事件时间线</h2><p>情感评分 −1 ～ 1：（正面数量 − 负面数量）÷ 总量</p></div>
+              <div><h2>情感趋势与 Rust 事件时间线（事件 mock）</h2><p>情感评分 −1 ～ 1：（正面数量 − 负面数量）÷ 总量</p></div>
             </div>
             <div class="timeline-toolbar">
               <label>分析维度
@@ -152,7 +153,7 @@
             <div class="panel-head small"><div><span class="panel-index">02</span><div><h2>13 大类情感画像</h2><p>点击分类名称或扇区，查看选定时间范围内的情感数量与关键词</p></div></div><span id="profileTotal"></span></div>
             <p class="profile-note">分类占比按方面标注次数统计；一条文本可涉及多个方面。</p>
             <div class="profile-charts"><div><h3>分类数据占比</h3><svg id="pieSvg" viewBox="0 0 600 420" role="img" aria-label="13 大类方面占比饼状图"></svg></div><div><h3>各类情感评分</h3><svg id="topicRadarSvg" viewBox="0 0 600 420" role="img" aria-label="13 类情感评分雷达图"></svg><p class="score-note">中心 −1 · 中间环 0 · 外圈 1</p></div></div>
-            <div class="profile-topics"><h3>Topic分类、占比与评分</h3><div class="topic-table-head"><span>Topic 分类</span><span>占比</span><span>评分</span></div><div id="categoryLegend" class="category-legend"></div></div>
+            <div class="profile-topics"><h3>方面分类、占比与评分</h3><div class="topic-table-head"><span>Aspect 分类</span><span>占比</span><span>评分</span></div><div id="categoryLegend" class="category-legend"></div></div>
           </article>
         </section>
         <aside id="categoryPopover" class="category-popover panel" role="dialog" aria-modal="false" aria-labelledby="categoryTitle" hidden>
@@ -161,7 +162,7 @@
 
         <footer>
           <span>开发者之声 · 南京大学大学生创新训练计划</span>
-          <span>数据范围：GitHub 公开 Issue、PR 与评论 · 页面数据为原型演示</span>
+          <span>数据范围：GitHub 公开 Issue、PR 与评论 · 已标注统计，Topic 与事件为 mock</span>
         </footer>
       </main>
     </div>
