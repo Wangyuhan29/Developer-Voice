@@ -157,7 +157,10 @@ function renderTimeline() {
   }
   svg.append(createSvg("polyline", { points: points.map(p => p.slice(0,2).join(",")).join(" "), fill: "none", stroke: "url(#lineGradient)", "stroke-width": 2.5 }));
   points.forEach(([cx, cy, index]) => {
-    const dot = createSvg("circle", { cx, cy, r: 3, fill: "#8065ff" });
+    const dot = createSvg("circle", { cx, cy, r: 4, fill: "#8065ff", class: "month-point", tabindex: 0, role: "button", "aria-label": `${allMonths[index]} ${dimensionName(state.dimension)} 月份详情` });
+    dot.addEventListener("pointerdown", event => event.stopPropagation());
+    dot.addEventListener("click", event => { event.stopPropagation(); showMonthDetail(index, event); });
+    dot.addEventListener("keydown", event => { if (["Enter", " "].includes(event.key)) { event.preventDefault(); showMonthDetail(index); } });
     dot.addEventListener("pointerenter", event => showTrendTooltip(event, index));
     dot.addEventListener("pointerleave", hideTooltip); svg.append(dot);
   });
@@ -233,6 +236,19 @@ function showTrendTooltip(event, index) {
   tip.innerHTML = `<span>${allMonths[index]} · ${dimensionName(state.dimension)}</span><strong>情感评分 ${emotionScore(counts).toFixed(2)}</strong>${sentiments.map(s => `<span>${s.name}：${counts[s.key].toLocaleString()} 条（${counts.total ? (counts[s.key] / counts.total * 100).toFixed(1) : "0.0"}%）</span>`).join("")}`;
   tip.style.left = `${pos.left}px`; tip.style.top = `${pos.top}px`; tip.hidden = false;
 }
+function showMonthDetail(index, event = null) {
+  closeTimelineEventPopover();
+  const counts = monthCounts(index);
+  const panel = $("#monthDetail");
+  $("#monthTitle").textContent = `${allMonths[index]} 月份详情`;
+  $("#monthDimension").textContent = `${dimensionName(state.dimension)} · ${analyticsApi.runtime.useMock ? "模拟数据" : "后端统计"}`;
+  $("#monthStatistics").innerHTML = `<div class="month-stat"><span>总数据量</span><strong>${counts.total.toLocaleString()} 条</strong></div><div class="month-stat"><span>情感评分</span><strong>${emotionScore(counts).toFixed(2)}</strong></div>` + sentiments.map(s => `<div class="month-stat"><span><i style="background:${s.color}"></i>${s.name}</span><strong>${counts[s.key].toLocaleString()} 条 <small>${counts.total ? (counts[s.key]/counts.total*100).toFixed(1) : "0.0"}%</small></strong></div>`).join("");
+  panel.hidden = false;
+  panel.scrollTop = 0;
+  placeFloatingPanel(panel, event?.clientX ?? window.innerWidth/2, event?.clientY ?? window.innerHeight/3);
+  $("#closeMonthDetail").focus();
+}
+
 function showEventTooltip(event, item) {
   const tip = $("#chartTooltip");
   const pos = tooltipPosition(event);
@@ -264,12 +280,11 @@ function renderRadar() {
   });
   [-1,1].forEach(side => {
     const labels = pieLabels.filter(label => label.side === side).sort((a,b)=>a.targetY-b.targetY);
-    labels.forEach((label,i)=> { label.labelY = Math.max(label.targetY, i ? labels[i-1].labelY+25 : 35); });
-    if (labels.length && labels.at(-1).labelY > 385) { const offset = labels.at(-1).labelY - 385; labels.forEach(label=>label.labelY-=offset); }
+    labels.forEach((label,i)=> { label.labelY = 210 + (i - (labels.length - 1) / 2) * 42; });
     labels.forEach(label=> {
-      const endX = side > 0 ? 455 : 145;
-      svg.append(createSvg("polyline", { points:`${label.x},${label.y} ${300+side*150},${label.labelY} ${endX},${label.labelY}`, fill:"none",stroke:label.color,"stroke-width":1.3 }));
-      const text = svgText(endX + side*5,label.labelY+4,label.item.name || dimensionName(label.item.id), {fill:"#8190a6","font-size":12,"text-anchor":side>0?"start":"end",class:"pie-category-label",tabindex:0,role:"button"});
+      const endX = side > 0 ? 465 : 135;
+      svg.append(createSvg("polyline", { points:`${label.x},${label.y} ${300+side*150},${label.y} ${300+side*158},${label.labelY} ${endX},${label.labelY}`, fill:"none",stroke:label.color,"stroke-width":1.1,"stroke-opacity":.65 }));
+      const text = svgText(endX + side*5,label.labelY+4,label.item.name || dimensionName(label.item.id), {fill:"var(--text-secondary, #68778f)","font-size":13,"text-anchor":side>0?"start":"end",class:"pie-category-label",tabindex:0,role:"button"});
       text.addEventListener("click",()=>openCategory(label.item.id));text.addEventListener("keydown",e=>{if(["Enter"," "].includes(e.key)){e.preventDefault();openCategory(label.item.id);}});svg.append(text);
     });
   });
@@ -347,21 +362,27 @@ function renderEventDetail() {
   if (state.eventPopoverOpen) window.requestAnimationFrame(positionEventPopover);
 }
 
+function placeFloatingPanel(panel, anchorX, anchorY) {
+  const view = window.visualViewport;
+  const minX = (view?.offsetLeft || 0) + 12;
+  const minY = (view?.offsetTop || 0) + 12;
+  const right = (view?.offsetLeft || 0) + (view?.width || window.innerWidth) - 12;
+  const bottom = (view?.offsetTop || 0) + (view?.height || window.innerHeight) - 12;
+  panel.style.maxWidth = `${right-minX}px`;
+  panel.style.maxHeight = `${bottom-minY}px`;
+  const width = panel.offsetWidth, height = panel.offsetHeight;
+  let left = anchorX + 16;
+  if (left + width > right) left = anchorX - width - 16;
+  let top = anchorY + 16;
+  if (top + height > bottom) top = anchorY - height - 16;
+  panel.style.left = `${clamp(left,minX,Math.max(minX,right-width))}px`;
+  panel.style.top = `${clamp(top,minY,Math.max(minY,bottom-height))}px`;
+}
 function positionEventPopover() {
   const panel = $("#eventDetail");
-  const viewport = $("#timelineViewport");
   if (panel.hidden) return;
-  const gap = 16;
-  const panelWidth = panel.offsetWidth;
-  const panelHeight = panel.offsetHeight;
-  const anchorX = state.eventPopoverPosition.x || viewport.clientWidth / 2;
-  const anchorY = state.eventPopoverPosition.y || viewport.clientHeight / 2;
-  let left = anchorX + gap;
-  if (left + panelWidth > viewport.clientWidth - 12) left = anchorX - panelWidth - gap;
-  left = clamp(left, 12, Math.max(12, viewport.clientWidth - panelWidth - 12));
-  const top = clamp(anchorY - 54, 12, Math.max(12, viewport.clientHeight - panelHeight - 12));
-  panel.style.left = `${left}px`;
-  panel.style.top = `${top}px`;
+  const rect = $("#timelineViewport").getBoundingClientRect();
+  placeFloatingPanel(panel, rect.left + state.eventPopoverPosition.x, rect.top + state.eventPopoverPosition.y);
 }
 
 function updateMetrics() {
@@ -456,6 +477,7 @@ function renderAll() {
 }
 
 function selectDimension(id) {
+  closeTimelineEventPopover();
   state.dimension = id;
   $("#dimensionSelect").value = id;
   renderAll();
@@ -479,6 +501,7 @@ function selectKeyword(word) {
 }
 
 function selectEvent(event, pointerEvent = null) {
+  $("#monthDetail").hidden = true;
   hideTooltip();
   const sameEvent = state.selectedEvent?.date === event.date && state.selectedEvent?.title === event.title;
   if (sameEvent && state.eventPopoverOpen) {
@@ -498,7 +521,15 @@ function selectEvent(event, pointerEvent = null) {
   renderAll();
 }
 
+function closeTimelineEventPopover() {
+  $("#monthDetail").hidden = true;
+  state.eventPopoverOpen = false;
+  $("#eventDetail").hidden = true;
+  hideTooltip();
+}
+
 function setRange(start, end, source = "custom") {
+  closeTimelineEventPopover();
   state.start = clamp(Math.min(start, end), 0, allMonths.length - 1);
   state.end = clamp(Math.max(start, end), 0, allMonths.length - 1);
   $$(".quick-ranges button").forEach(button => button.classList.toggle("active", button.dataset.months === source));
@@ -527,18 +558,65 @@ $("#resetView").addEventListener("click", () => {
 $("#clearFilter").addEventListener("click", () => { state.keyword = null; state.dimension = "overall"; $("#dimensionSelect").value = "overall"; renderAll(); });
 $("#timelineStart").addEventListener("change", event => { if (event.target.value) setRange(monthIndex(event.target.value), state.end); });
 $("#timelineEnd").addEventListener("change", event => { if (event.target.value) setRange(state.start, monthIndex(event.target.value)); });
+// Keep wheel input inside the details panel, including at either scroll boundary.
+$("#categoryPopover").addEventListener("wheel", event => {
+  event.stopPropagation();
+  const panel = event.currentTarget;
+  const atTop = panel.scrollTop <= 0;
+  const atBottom = panel.scrollTop + panel.clientHeight >= panel.scrollHeight - 1;
+  if ((event.deltaY < 0 && atTop) || (event.deltaY > 0 && atBottom)) {
+    event.preventDefault();
+  }
+}, { passive: false });
 $("#closeCategory").addEventListener("click", () => { selectedCategory = null; $("#categoryPopover").hidden = true; });
 document.addEventListener("pointerdown", event => { if (!event.target.closest("#categoryPopover, .category-row, .topic-score, #pieSvg, #topicRadarSvg")) { selectedCategory = null; $("#categoryPopover").hidden = true; } });
 document.addEventListener("keydown", event => { if (event.key === "Escape") { selectedCategory = null; $("#categoryPopover").hidden = true; state.eventPopoverOpen = false; $("#eventDetail").hidden = true; } });
 
 const viewport = $("#timelineViewport");
+let timelineWheelActive = false;
+let wheelGestureLastTime = 0, wheelGestureDelta = 0, wheelZoomLastTime = -Infinity;
+function setTimelineWheelActive(active) {
+  if (timelineWheelActive !== active) {
+    wheelGestureLastTime = 0; wheelGestureDelta = 0; wheelZoomLastTime = -Infinity;
+  }
+  timelineWheelActive = active;
+  viewport.classList.toggle("wheel-active", active);
+  $("#timelineWheelHint").textContent = active
+    ? "↕ 滚轮调整精度 · 点击图外或 Esc 退出"
+    : "点击图表后，滚轮调整精度";
+}
+viewport.addEventListener("click", event => {
+  if (!event.target.closest(".event-detail-float, .monthly-popover")) setTimelineWheelActive(true);
+}, { capture: true });
+document.addEventListener("pointerdown", event => {
+  if (!viewport.contains(event.target)) setTimelineWheelActive(false);
+}, { capture: true });
+document.addEventListener("focusin", event => {
+  if (!viewport.contains(event.target)) setTimelineWheelActive(false);
+});
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape") setTimelineWheelActive(false);
+});
+window.addEventListener("blur", () => setTimelineWheelActive(false));
 let dragging = false, pointerStart = 0, originalStart = 0, originalEnd = 0;
 viewport.addEventListener("wheel", event => {
-  if (event.target.closest?.(".event-detail-float")) return;
+  if (!timelineWheelActive || event.target.closest?.(".event-detail-float, .monthly-popover") || !event.deltaY || event.ctrlKey) return;
   event.preventDefault();
+  closeTimelineEventPopover();
+  // Accumulate small deltas, allowing continuous zoom at a bounded speed.
+  const now = performance.now();
+  if (!wheelGestureLastTime || now - wheelGestureLastTime > 180) wheelGestureDelta = 0;
+  wheelGestureLastTime = now;
+  const deltaPixels = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? viewport.clientHeight : 1);
+  if (wheelGestureDelta && Math.sign(deltaPixels) !== Math.sign(wheelGestureDelta)) wheelGestureDelta = 0;
+  wheelGestureDelta = clamp(wheelGestureDelta + deltaPixels, -48, 48);
+  if (Math.abs(wheelGestureDelta) < 6 || now - wheelZoomLastTime < 90) return;
+  const zoomDirection = Math.sign(wheelGestureDelta);
+  wheelGestureDelta = 0;
+  wheelZoomLastTime = now;
   const span = state.end - state.start;
   const minSpan = 11;
-  const nextSpan = clamp(Math.round(span * (event.deltaY < 0 ? .82 : 1.2)), minSpan, allMonths.length - 1);
+  const nextSpan = clamp(Math.round(span * (zoomDirection < 0 ? .88 : 1.12)), minSpan, allMonths.length - 1);
   const rect = viewport.getBoundingClientRect();
   const ratio = clamp((event.clientX - rect.left) / rect.width, 0, 1);
   const anchor = state.start + span * ratio;
@@ -550,7 +628,7 @@ viewport.addEventListener("wheel", event => {
   renderAll();
 }, { passive: false });
 viewport.addEventListener("pointerdown", event => {
-  if (event.target.closest?.(".event-node, .event-detail-float")) return;
+  if (event.target.closest?.(".event-node, .event-detail-float, .month-point, .monthly-popover")) return;
   dragging = true; pointerStart = event.clientX; originalStart = state.start; originalEnd = state.end;
   viewport.classList.add("dragging"); viewport.setPointerCapture(event.pointerId);
 });
@@ -569,6 +647,7 @@ document.addEventListener("pointerdown", event => {
 });
 viewport.addEventListener("pointermove", event => {
   if (!dragging) return;
+  closeTimelineEventPopover();
   const span = originalEnd - originalStart;
   const deltaMonths = Math.round((pointerStart - event.clientX) / viewport.clientWidth * span);
   let nextStart = clamp(originalStart + deltaMonths, 0, allMonths.length - 1 - span);
@@ -597,6 +676,7 @@ let rangeOriginalStart = 0;
 let rangeOriginalEnd = 0;
 
 function beginRangeDrag(event) {
+  closeTimelineEventPopover();
   event.preventDefault();
   const total = allMonths.length - 1;
   const span = state.end - state.start;
@@ -619,6 +699,7 @@ function beginRangeDrag(event) {
 
 function moveRangeDrag(event) {
   if (!rangeDragging) return;
+  closeTimelineEventPopover();
   event.preventDefault();
   const total = allMonths.length - 1;
   const span = rangeOriginalEnd - rangeOriginalStart;
@@ -675,6 +756,12 @@ function syncNavigationWithScroll() {
       if (section && section.getBoundingClientRect().top <= marker) current = button;
     });
   }
+  if (current?.dataset.target === "dimensionPanel" && state.eventPopoverOpen) closeTimelineEventPopover();
+  // Reuse the navigation section boundary to dismiss profile details at section 01.
+  if (current?.dataset.target === "timelinePanel" && selectedCategory) {
+    selectedCategory = null;
+    $("#categoryPopover").hidden = true;
+  }
   navButtons.forEach(button => {
     const active = button === current;
     button.classList.toggle("active", active);
@@ -682,7 +769,10 @@ function syncNavigationWithScroll() {
     else button.removeAttribute("aria-current");
   });
 }
-window.addEventListener("scroll", syncNavigationWithScroll, { passive: true });
+window.addEventListener("scroll", () => {
+  closeTimelineEventPopover();
+  syncNavigationWithScroll();
+}, { passive: true });
 
 const themeSelect = $("#themeSelect");
 const systemTheme = window.matchMedia("(prefers-color-scheme: light)");
@@ -714,18 +804,11 @@ $("#refreshButton").addEventListener("click", async () => {
   }
 });
 
-const dialog = $("#guideDialog");
-$("#guideButton").addEventListener("click", () => dialog.showModal());
-$("#closeGuide").addEventListener("click", () => dialog.close());
-dialog.addEventListener("click", event => {
-  const rect = dialog.getBoundingClientRect();
-  if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) dialog.close();
-});
 
 let resizeTimer;
 window.addEventListener("resize", () => {
   clearTimeout(resizeTimer);
-  resizeTimer = setTimeout(renderAll, 100);
+  resizeTimer = setTimeout(() => { closeTimelineEventPopover(); renderAll(); }, 100);
 });
 
 populateControls();
@@ -737,3 +820,23 @@ $$("input[type='month']").forEach(input => {
   input.addEventListener("click", () => { if (typeof input.showPicker === "function") { try { input.showPicker(); } catch {} } });
   input.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { if (typeof input.showPicker === "function") { try { input.showPicker(); event.preventDefault(); } catch {} } } });
 });
+
+const directoryToggle = $("#toggleDirectory");
+function setDirectoryCollapsed(collapsed) {
+  document.documentElement.classList.toggle("directory-collapsed", collapsed);
+  directoryToggle.setAttribute("aria-expanded", String(!collapsed));
+  directoryToggle.setAttribute("aria-label", collapsed ? "展开目录" : "收起目录");
+  directoryToggle.querySelector("i").textContent = collapsed ? "›" : "‹";
+  window.requestAnimationFrame(renderTimeline);
+}
+setDirectoryCollapsed(true);
+directoryToggle.addEventListener("click", () => setDirectoryCollapsed(!document.documentElement.classList.contains("directory-collapsed")));
+
+$("#closeMonthDetail").addEventListener("click", closeTimelineEventPopover);
+$("#monthDetail").addEventListener("wheel", event => {
+  event.stopPropagation();
+  const panel = event.currentTarget;
+  if ((event.deltaY < 0 && panel.scrollTop <= 0) || (event.deltaY > 0 && panel.scrollTop + panel.clientHeight >= panel.scrollHeight - 1)) event.preventDefault();
+}, { passive: false });
+document.addEventListener("pointerdown", event => { if (!event.target.closest(".monthly-popover, .month-point")) $("#monthDetail").hidden = true; });
+document.addEventListener("keydown", event => { if (event.key === "Escape") closeTimelineEventPopover(); });

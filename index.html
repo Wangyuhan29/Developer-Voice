@@ -18,24 +18,23 @@
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <aside class="sidebar">
-      <a class="brand" href="#" aria-label="开发者之声首页">
-        <span class="brand-mark">DV</span>
-        <span><strong>Developer Voice</strong><small>工程社区情感分析平台</small></span>
-      </a>
 
-      <nav class="side-nav" aria-label="分析导航">
-        <button class="active" data-target="overview"><i>⌂</i><span>总览分析</span></button>
-        <button data-target="timelinePanel"><i>⌁</i><span>趋势与事件</span></button>
-        <button data-target="dimensionPanel"><i>◇</i><span>维度画像</span></button>
+    <aside class="sidebar directory-window">
+      <button id="toggleDirectory" class="directory-toggle" aria-expanded="true" aria-controls="directoryNav" aria-label="收起目录"><span>分析目录</span><i aria-hidden="true">‹</i></button>
+      <nav id="directoryNav" class="side-nav" aria-label="分析导航">
+        <button class="active" aria-label="总览分析" title="总览分析" data-target="overview"><i>⌂</i><span>总览分析</span></button>
+        <button aria-label="趋势与事件" title="趋势与事件" data-target="timelinePanel"><i>⌁</i><span>趋势与事件</span></button>
+        <button aria-label="维度画像" title="维度画像" data-target="dimensionPanel"><i>◇</i><span>维度画像</span></button>
         
       </nav>
-
-      <button class="side-help" id="guideButton"><i>?</i><span>查看交互指南</span></button>
     </aside>
 
     <div class="app-shell">
-      <header class="topbar">
+      <header class="topbar unified-topbar">
+        <div class="topbar-brand"><a class="brand" href="#" aria-label="开发者之声首页">
+        <span class="brand-mark">DV</span>
+        <span><strong>Developer Voice</strong><small>工程社区情感分析平台</small></span>
+      </a></div>
         <div class="date-control">
           <span>时间范围</span>
           <div class="date-inputs">
@@ -87,7 +86,7 @@
               <div><h2>情感趋势与 Rust 事件时间线（事件 mock）</h2><p>情感评分 −1 ～ 1：（正面数量 − 负面数量）÷ 总量</p></div>
             </div>
             <div class="timeline-toolbar">
-              <label>分析维度
+              <label><span>分析维度</span>
                 <select id="dimensionSelect"></select>
               </label>
               <div class="timeline-dates"><label><span>起始年月</span><div class="date-inputs"><input id="timelineStart" type="month" min="2010-01" max="2026-07" aria-label="时间线起始年月"></div></label><b>→</b><label><span>截止年月</span><div class="date-inputs"><input id="timelineEnd" type="month" min="2010-01" max="2026-07" aria-label="时间线截止年月"></div></label></div>
@@ -103,38 +102,9 @@
           <div class="timeline-viewport" id="timelineViewport" tabindex="0">
             <svg id="timelineSvg" role="img" aria-label="可缩放拖动的 Rust 社区情感时间线"></svg>
             <div class="timeline-instruction">
-              <span>↕ 滚轮调整详细度</span><i></i><span>↔ 左右拖动时间</span><i></i><span>点击节点查看事件</span>
+              <span id="timelineWheelHint" aria-live="polite">点击图表后，滚轮调整精度</span><i></i><span>↔ 左右拖动时间</span><i></i><span>点击节点查看事件</span>
             </div>
             <div class="chart-tooltip" id="chartTooltip" hidden></div>
-            <aside class="panel event-detail event-detail-float" id="eventDetail" hidden>
-              <button class="event-detail-close" id="closeEventDetail" aria-label="关闭事件解读">×</button>
-              <div class="panel-head small">
-                <div><span class="panel-index">EVENT</span><div><h2>事件影响解读</h2><p>与当前选中的时间线事件同步</p></div></div>
-                <span class="event-type" id="eventType">LANGUAGE</span>
-              </div>
-              <div class="event-date" id="eventDate">2024.11</div>
-              <h3 id="eventTitle">Rust 2024 Edition 就绪</h3>
-              <p id="eventDescription">语言一致性与迁移体验继续改善，相关讨论中对工程可维护性的正向反馈明显增加。</p>
-              <div class="impact-box">
-                <div><span>事件影响</span><b id="impactValue">+0.34</b></div>
-                <div class="impact-track"><i id="impactBar" style="width:74%"></i></div>
-                <small id="impactLabel">Maintainability 正向情感提升</small>
-              </div>
-              <div class="event-keywords" id="eventKeywords"></div>
-              <div class="event-analysis">
-                <div class="analysis-title"><span>事件窗口情感构成</span><small>事件前后 30 天</small></div>
-                <div class="event-sentiment-grid">
-                  <div><i class="positive"></i><span>积极</span><strong id="eventPositive">58%</strong></div>
-                  <div><i class="neutral"></i><span>中性</span><strong id="eventNeutral">27%</strong></div>
-                  <div><i class="negative"></i><span>消极</span><strong id="eventNegative">15%</strong></div>
-                </div>
-                <div class="source-breakdown">
-                  <div><span>Issue</span><i><b id="eventIssueBar"></b></i><strong id="eventIssueValue">48%</strong></div>
-                  <div><span>PR</span><i><b id="eventPrBar"></b></i><strong id="eventPrValue">31%</strong></div>
-                  <div><span>Comment</span><i><b id="eventCommentBar"></b></i><strong id="eventCommentValue">21%</strong></div>
-                </div>
-              </div>
-            </aside>
           </div>
 
           <div class="timeline-bottom">
@@ -167,16 +137,39 @@
       </main>
     </div>
 
-    <dialog id="guideDialog">
-      <button id="closeGuide" class="dialog-close" aria-label="关闭">×</button>
-      <span class="dialog-kicker">INTERACTION GUIDE</span>
-      <h2>所有板块都从时间线出发</h2>
-      <div class="guide-grid">
-        <div><b>01</b><strong>缩放时间</strong><p>在时间线右侧自由选择起止年月，也可以滚轮缩放时间范围。</p></div>
-        <div><b>02</b><strong>拖动浏览</strong><p>按住主图左右拖动，日期、统计卡、折线图与饼图将同步刷新。</p></div>
-        <div><b>03</b><strong>点击联动</strong><p>点击画像分类名称，查看该时间范围内的正面、中性、负面数量及关键词。</p></div>
-      </div>
-    </dialog>
+
+            <aside id="monthDetail" class="panel monthly-popover" role="dialog" aria-labelledby="monthTitle" hidden><button id="closeMonthDetail" class="event-detail-close" aria-label="关闭月份详情">×</button><h2 id="monthTitle"></h2><p id="monthDimension"></p><div id="monthStatistics"></div></aside>
+
+
+            <aside class="panel event-detail event-detail-float" id="eventDetail" hidden>
+              <button class="event-detail-close" id="closeEventDetail" aria-label="关闭事件解读">×</button>
+              <div class="panel-head small">
+                <div><span class="panel-index">EVENT</span><div><h2>事件影响解读</h2><p>与当前选中的时间线事件同步</p></div></div>
+                <span class="event-type" id="eventType">LANGUAGE</span>
+              </div>
+              <div class="event-date" id="eventDate">2024.11</div>
+              <h3 id="eventTitle">Rust 2024 Edition 就绪</h3>
+              <p id="eventDescription">语言一致性与迁移体验继续改善，相关讨论中对工程可维护性的正向反馈明显增加。</p>
+              <div class="impact-box">
+                <div><span>事件影响</span><b id="impactValue">+0.34</b></div>
+                <div class="impact-track"><i id="impactBar" style="width:74%"></i></div>
+                <small id="impactLabel">Maintainability 正向情感提升</small>
+              </div>
+              <div class="event-keywords" id="eventKeywords"></div>
+              <div class="event-analysis">
+                <div class="analysis-title"><span>事件窗口情感构成</span><small>事件前后 30 天</small></div>
+                <div class="event-sentiment-grid">
+                  <div><i class="positive"></i><span>积极</span><strong id="eventPositive">58%</strong></div>
+                  <div><i class="neutral"></i><span>中性</span><strong id="eventNeutral">27%</strong></div>
+                  <div><i class="negative"></i><span>消极</span><strong id="eventNegative">15%</strong></div>
+                </div>
+                <div class="source-breakdown">
+                  <div><span>Issue</span><i><b id="eventIssueBar"></b></i><strong id="eventIssueValue">48%</strong></div>
+                  <div><span>PR</span><i><b id="eventPrBar"></b></i><strong id="eventPrValue">31%</strong></div>
+                  <div><span>Comment</span><i><b id="eventCommentBar"></b></i><strong id="eventCommentValue">21%</strong></div>
+                </div>
+              </div>
+            </aside>
 
     <script type="module" src="/app.js"></script>
   </body>
