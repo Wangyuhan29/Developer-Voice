@@ -3,7 +3,8 @@
 默认沿用部署根目录 /opt/GITHUB-SENTIMENT，下面并列存放 github-sentiment 和 Developer-Voice。
 以下均为 Ubuntu Bash 命令。2026-10-07 已通过 SSH 将查询表和 API 部署到现有后端服务器，
 `developer-voice-api` 已启用并监听 127.0.0.1:8000，实际运行用户为 cyg。
-首次刷新包含 56,388 条语料、74,911 行方面标注；前端及 Nginx 的生产部署步骤保留供后续使用。
+首次刷新包含 56,388 条语料、74,911 行方面标注。前端克隆至 `/opt/GITHUB-SENTIMENT/Developer-Voice`，
+生产页面由 Nginx 提供，`/api/` 同源代理到现有后端；Node.js 仅用于构建。
 本次代码备份位于后端 `run/api-code-backup-20261007T014741`。
 
 ## 1. 后端 API
@@ -82,24 +83,27 @@ VITE_API_BASE_URL=/api/v1
 VITE_API_TIMEOUT=12000
 ```
 
-变量在构建时生效，更改后必须重建。Topic 始终为 mock，不受统计开关影响。
+变量在构建时生效，更改后必须重建。季度主题读取服务器已保存的真实结果和中文名称；
+方面详情示例关键词、事件和单文本推理仍为 mock。
 
 ```bash
+git clone https://github.com/Wangyuhan29/Developer-Voice.git /opt/GITHUB-SENTIMENT/Developer-Voice
 cd /opt/GITHUB-SENTIMENT/Developer-Voice
 npm ci
 npm run build
-sudo mkdir -p /var/www/developer-voice
-sudo cp -r dist/. /var/www/developer-voice/
 ```
 
-Nginx 使用 /var/www/developer-voice 静态目录，并保留 /api/v1 前缀代理到本机 8000。
+Nginx 使用 `/opt/GITHUB-SENTIMENT/Developer-Voice/dist` 静态目录，并保留 /api/v1 前缀代理到本机 8000。
 检查 deploy/nginx.conf.example 的域名和路径；已有网站配置时合并相应 location，避免重复监听。
 尚未安装 Nginx 时先执行 sudo apt install nginx。
 
 ```bash
 sudo cp deploy/nginx.conf.example /etc/nginx/sites-available/developer-voice
 sudo ln -sfn /etc/nginx/sites-available/developer-voice /etc/nginx/sites-enabled/developer-voice
+# 新安装 Nginx 的默认站点与本配置均为 default_server，启用前移除默认站点链接。
+if [ -L /etc/nginx/sites-enabled/default ]; then sudo unlink /etc/nginx/sites-enabled/default; fi
 sudo nginx -t
+sudo systemctl enable --now nginx
 sudo systemctl reload nginx
 ```
 
@@ -116,8 +120,13 @@ curl --fail 'http://127.0.0.1/api/v1/sentiment-facts?start_date=2025-01&end_date
 ```
 
 空范围返回零值，503 通常为未建表或数据库无法连接。
-页面应显示“数据仓库”，分类详情中的 Topic 关键词明确为 mock。
+页面应显示“数据仓库”，季度主题应能切换季度、显示中文名称和真实代表语料；
+分类详情中的示例关键词依旧明确为 mock。当前按服务器 IP 使用 HTTP 访问，80 端口需允许入站。
 字段和计数口径见 [API 契约](API_CONTRACT.md)。
+
+后续更新在前端目录执行 `git pull --ff-only`、`npm ci`、`npm run build`。
+修改 Nginx 配置时重新安装配置并执行 `nginx -t` 与 `systemctl reload nginx`；
+单独重建静态页面不需要重启后端。Nginx 和 `developer-voice-api` 均由 systemd 持续运行。
 
 ## 4. 开发及两台服务器
 

@@ -1,10 +1,15 @@
 server {
-    listen 80;
+    listen 80 default_server;
+    listen [::]:80 default_server;
     server_name _;
 
     # npm run build 生成的 dist 目录
-    root /var/www/developer-voice;
+    root /opt/GITHUB-SENTIMENT/Developer-Voice/dist;
     index index.html;
+
+    location = /index.html {
+        add_header Cache-Control "no-cache";
+    }
 
     location / {
         try_files $uri $uri/ /index.html;
