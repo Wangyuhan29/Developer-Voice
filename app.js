@@ -748,7 +748,7 @@ $$(".side-nav button").forEach(button => button.addEventListener("click", () => 
 
 const navButtons = $$(".side-nav button");
 function syncNavigationWithScroll() {
-  const marker = 150;
+  const marker = Math.max(150, $(".topbar").getBoundingClientRect().bottom + 24);
   let current = navButtons[0];
   const documentHeight = document.documentElement.scrollHeight;
   const reachedBottom = window.scrollY + window.innerHeight >= documentHeight - 8;

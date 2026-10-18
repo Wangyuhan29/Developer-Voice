@@ -1444,4 +1444,3 @@ html #categoryPopover {box-sizing:border-box;max-height:calc(100dvh - 48px);}
 @media (max-width: 780px) {
   #topicsPanel { scroll-margin-top: 172px; }
 }
-
