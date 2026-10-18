@@ -28,6 +28,7 @@
         <button class="active" data-target="overview"><i>⌂</i><span>总览分析</span></button>
         <button data-target="timelinePanel"><i>⌁</i><span>趋势与事件</span></button>
         <button data-target="dimensionPanel"><i>◇</i><span>维度画像</span></button>
+        <button data-target="topicsPanel" aria-label="季度主题" title="季度主题"><i>▦</i><span>季度主题</span></button>
         
       </nav>
 
@@ -160,9 +161,28 @@
           <button id="closeCategory" class="event-detail-close" aria-label="关闭分类详情">×</button><h2 id="categoryTitle"></h2><p id="categoryRange"></p><div class="category-total">该类总数据量 <strong id="categoryTotal"></strong></div><div id="categoryDetails"></div>
         </aside>
 
+        <section class="panel quarterly-topics" id="topicsPanel" aria-labelledby="topicsTitle">
+          <div class="panel-head topic-panel-head">
+            <div><span class="panel-index">03</span><div><h2 id="topicsTitle">季度主题</h2></div></div>
+          </div>
+          <div class="topic-range-row">
+            <div class="topic-quarter-control">
+              <button class="tool-button" id="topicPrevious" aria-label="上一季度" disabled>←</button>
+              <label><span class="sr-only">主题季度</span><select id="topicQuarter" aria-label="主题季度" disabled><option>正在加载…</option></select></label>
+              <button class="tool-button" id="topicNext" aria-label="下一季度" disabled>→</button>
+            </div>
+          </div>
+          <div id="topicBody">
+            <div id="topicSummary" class="topic-summary" hidden></div>
+            <div id="topicTools" class="topic-tools" hidden>
+              <label class="topic-search"><span class="sr-only">搜索主题</span><input id="topicSearch" type="search" placeholder="搜索主题" autocomplete="off"></label>
+            </div>
+            <div id="topicCards" class="topic-cards" aria-live="polite" aria-busy="true"><div class="topic-empty"><h3>加载中…</h3></div></div>
+          </div>
+        </section>
+
         <footer>
           <span>开发者之声 · 南京大学大学生创新训练计划</span>
-          <span>数据范围：GitHub 公开 Issue、PR 与评论 · 已标注统计，Topic 与事件为 mock</span>
         </footer>
       </main>
     </div>

@@ -1,6 +1,9 @@
 import { aspects, sentiments, mockAnalytics } from "./src/data/aspects.js";
 import { events } from "./src/data/mockEvents.js";
 import { analyticsApi } from "./src/services/analyticsApi.js";
+import { createTopicsPanel } from "./src/topicsPanel.js";
+
+const topicsPanel = createTopicsPanel(analyticsApi);
 
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
@@ -217,6 +220,7 @@ function renderTimeline() {
   });
 
   updateRangeUI();
+  topicsPanel.setRange(allMonths[state.start], allMonths[state.end]);
 }
 
 function tooltipPosition(event) {
@@ -706,7 +710,7 @@ $("#refreshButton").addEventListener("click", async () => {
   const button = $("#refreshButton");
   button.classList.add("loading"); button.disabled = true;
   try {
-    await syncWarehouse();
+    await Promise.all([syncWarehouse(), topicsPanel.refresh()]);
   } finally {
     button.classList.remove("loading"); button.disabled = false;
     button.innerHTML = "<i>✓</i> 已更新";

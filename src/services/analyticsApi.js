@@ -80,6 +80,14 @@ export const analyticsApi = {
     return mockTopicQueries.topics(filters);
   },
 
+  getTopicQuarters() {
+    return request("/topics");
+  },
+
+  getQuarterTopics(quarter, runName) {
+    return request(`/topics/${encodeURIComponent(quarter)}?${buildQuery({ run_name: runName })}`);
+  },
+
   getEvents(filters) {
     return Promise.resolve({ source: "mock", events: events.filter(event =>
       (!filters?.start_date || event.date >= filters.start_date)

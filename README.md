@@ -2,7 +2,7 @@
 
 面向 GitHub Issue、Pull Request 和评论的方面级情感分析前端。当前采用 `rust-aspects-v2` 的 13 个方面，以及正面、中性、负面三分类。
 
-> 当前默认连接后端 sentiment_facts 查询表；统计数量和情感评分来自查询表。Topic 关键词、事件解读及单文本推理仍为 mock。生产服务器需按部署说明启动 API 并刷新查询表。
+> 当前默认连接后端 sentiment_facts 查询表；统计数量和情感评分来自查询表。独立的季度主题模块读取服务器 BERTopic 结果；方面详情中的示例关键词、事件解读及单文本推理仍为 mock。生产服务器需按部署说明启动 API 并刷新查询表。
 
 ## 页面功能
 
@@ -45,6 +45,14 @@
 
 支持浅色、深色及跟随系统主题，偏好保存在本地浏览器。
 
+### 季度主题探索
+
+新增侧栏“季度主题”，保留原有总览、趋势与方面画像。季度范围跟随顶部月份范围，
+选择与范围相交的完整自然季度（UTC），支持季度下拉切换、前后季度、主题关键词搜索。
+展示去重语料数、主题数、已归类/未归类数量及占比，主题卡片可以展开真实代表语料并跳转 GitHub 原文。
+样本不足、全部未归类、无匹配季度与接口错误分别展示；边界季度提示源数据覆盖日期。
+各季度独立聚类，主题编号不能直接跨季度比较。新模块始终请求真实接口，不回退至模拟主题。
+
 ## 本地运行
 
 需要能运行 Vite 7 的 Node.js 环境。
@@ -71,6 +79,7 @@ styles.css                     样式和响应式布局
 app.js                         图表、联动和事件交互
 src/config.js                  环境配置
 src/services/analyticsApi.js    请求封装
+src/topicsPanel.js             真实季度主题、搜索和语料展开
 src/data/aspects.js             13 类定义和模拟聚合数据
 src/data/mockWarehouse.js       模拟仓库与接口
 src/data/mockTopics.js          Topic 关键词 mock 接口
@@ -90,7 +99,8 @@ docs/frontend-update-20261006.md 当前统计接口说明
 分别运行 `npm run tunnel` 和 `npm run dev`；见 [SSH 开发联调](docs/ssh-development.md)。
 生产构建已默认使用 `.env.production` 的真实统计模式。
 通过 Nginx 将 `/api/v1` 代理到后端 `127.0.0.1:8000`；Vite 开发服务器也配置了 `/api` 代理。
-Topic 关键词、事件和单文本推理继续为 mock，接口错误不会回退到模拟统计。
+季度主题通过 `/api/v1/topics` 读取服务器本地结果；方面详情示例关键词、事件和单文本推理仍为 mock。
+接口错误不会回退到模拟统计或模拟季度主题。
 
 - [当前 API 契约](docs/API_CONTRACT.md)：五字段明细、统计口径和 Topic mock。
 - [Ubuntu 部署说明](docs/ubuntu-deployment.md)：依赖、查询表刷新、systemd、Nginx 和跨服务器配置。

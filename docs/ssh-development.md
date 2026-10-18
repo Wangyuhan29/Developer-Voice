@@ -2,7 +2,7 @@
 
 开发路径：浏览器 → 本机 Vite /api/v1 → 本机 SSH 隧道 18000 → Ubuntu 127.0.0.1:8000。
 部署路径：浏览器 → 服务器 Nginx /api/v1 → Ubuntu 127.0.0.1:8000。
-两种模式使用相同 HTTP 接口；Topic 和关键词依旧为 mock。
+两种模式使用相同 HTTP 接口；季度主题请求真实 BERTopic 结果，方面详情示例关键词仍为 mock。
 
 2026-10-07 已验证本机 SSH 隧道、Vite 代理和服务器真实查询表的完整连接。
 本机 `.env.development.local` 已填入当前 SSH 目标；密码只在 OpenSSH 登录提示中输入。
