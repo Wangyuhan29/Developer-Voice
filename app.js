@@ -289,15 +289,14 @@ function renderRadar() {
       const endX = side > 0 ? 465 : 135;
       svg.append(createSvg("polyline", { points:`${label.x},${label.y} ${300+side*150},${label.y} ${300+side*158},${label.labelY} ${endX},${label.labelY}`, fill:"none",stroke:label.color,"stroke-width":1.1,"stroke-opacity":.65 }));
       const text = svgText(endX + side*5,label.labelY+4,label.item.name || dimensionName(label.item.id), {fill:"var(--text-secondary, #68778f)","font-size":13,"text-anchor":side>0?"start":"end",class:"pie-category-label",tabindex:0,role:"button"});
+      text.setAttribute("y", label.labelY - 3);
+      const percentage = createSvg("tspan", { x: endX + side*5, dy: 17, "font-size": 12, fill: label.color });
+      percentage.textContent = `${(label.item.total / total * 100).toFixed(1)}%`;
+      text.append(percentage);
       text.addEventListener("click",()=>openCategory(label.item.id));text.addEventListener("keydown",e=>{if(["Enter"," "].includes(e.key)){e.preventDefault();openCategory(label.item.id);}});svg.append(text);
     });
   });
   if (!total) svg.append(svgText(300,210, analyticsApi.runtime.useMock ? "暂无数据" : "等待后端分类统计数据", {"text-anchor":"middle",fill:"#68778f"}));
-  $("#categoryLegend").innerHTML = aspects.map((aspect, i) => {
-    const item = items.find(item => item.id === aspect.id);
-    return `<button class="category-row" data-category="${aspect.id}"><i style="background:${categoryColors[i]}"></i><span>${aspect.name}<small>${aspect.id}</small></span><b>${total && item ? (item.total / total * 100).toFixed(1) : "0.0"}%</b><b>${item?.total ? emotionScore(item).toFixed(2) : "暂无"}</b></button>`;
-  }).join("");
-  $$(".category-row").forEach(button => button.addEventListener("click", () => openCategory(button.dataset.category)));
   $("#profileTotal").textContent = `${total.toLocaleString()} 条方面标注`;
   renderAspectScores(items);
   if (selectedCategory) renderCategoryDetail();
@@ -312,7 +311,12 @@ function renderAspectScores(items) {
   }
   aspects.forEach((aspect, i) => {
     const [x,y] = point(i,radius); svg.append(createSvg("line", { x1:300,y1:210,x2:x,y2:y,stroke:"#8190a633" }));
-    const [lx,ly] = point(i,radius + 23); svg.append(svgText(lx,ly+4,aspect.name, { fill: categoryColors[i],"font-size":12,"text-anchor":lx>320?"start":lx<280?"end":"middle" }));
+    const [lx,ly] = point(i,radius + 29);
+    const item = items.find(item => item.id === aspect.id);
+    const label = svgText(lx,ly-3,aspect.name, { fill: categoryColors[i],"font-size":12,"text-anchor":lx>320?"start":lx<280?"end":"middle" });
+    const score = createSvg("tspan", { x: lx, dy: 16, "font-size": 12, "font-weight": 600 });
+    score.textContent = item?.total ? emotionScore(item).toFixed(2) : "暂无数据";
+    label.append(score); svg.append(label);
   });
   // Missing categories keep a gap rather than receiving a made-up score.
   const scores = aspects.map(aspect => items.find(item => item.id === aspect.id));
@@ -324,9 +328,9 @@ function renderAspectScores(items) {
 function renderCategoryDetail() {
   const item = currentAnalytics().categories.find(item => item.id === selectedCategory);
   $("#categoryTitle").textContent = dimensionName(selectedCategory);
-  $("#categoryRange").textContent = `${allMonths[state.start]} 至 ${allMonths[state.end]} · ${analyticsApi.runtime.useMock ? "模拟数据" : "查询表统计"} · Topic 关键词为 mock`;
+  $("#categoryRange").textContent = `${allMonths[state.start]} 至 ${allMonths[state.end]} · ${analyticsApi.runtime.useMock ? "模拟数据" : "查询表统计"}`;
   $("#categoryTotal").textContent = item ? `${item.total.toLocaleString()} 条` : "暂无统计数据";
-  $("#categoryDetails").innerHTML = sentiments.map(s => `<section><h3><i style="background:${s.color}"></i>${s.name}<b>${(item?.[s.key] || 0).toLocaleString()} 条</b></h3><div>${(item?.keywords?.[s.key] || []).map(word => `<span>${escapeHtml(typeof word === "string" ? word : word.word)}</span>`).join("") || "暂无关键词"}</div></section>`).join("");
+  $("#categoryDetails").innerHTML = sentiments.map(s => `<section><h3><i style="background:${s.color}"></i>${s.name}<b>${(item?.[s.key] || 0).toLocaleString()} 条</b></h3></section>`).join("");
 }
 function openCategory(id) { selectedCategory = id; renderCategoryDetail(); $("#categoryPopover").hidden = false; $("#closeCategory").focus(); }
 function renderRankings() {}
