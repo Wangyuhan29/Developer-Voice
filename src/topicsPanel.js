@@ -13,7 +13,7 @@ const safeGithubUrl = value => {
   } catch { return null; }
 };
 
-export function createTopicsPanel(api) {
+export function createTopicsPanel(api, { onFocusQuarter = () => {}, onFocusMonth = () => {} } = {}) {
   const root = document.querySelector("#topicsPanel");
   const $ = id => root.querySelector(`#${id}`);
   const select = $("topicQuarter");
@@ -25,6 +25,8 @@ export function createTopicsPanel(api) {
   let detail = null;
   let requestVersion = 0;
   let loadingIndex = false;
+  let pendingQuarter = null;
+  let context = {aspect:"全部方面",isFiltered:false};
 
   function holdLayout() {
     const body = $("topicBody");
@@ -41,7 +43,13 @@ export function createTopicsPanel(api) {
     $("topicCards").innerHTML = `<div class="topic-empty"><h3>${escape(title)}</h3>${retry ? '<button class="tool-button" data-topic-retry>重新加载</button>' : ""}</div>`;
   }
 
+  function renderContext() {
+    const partial = selected && range.length === 2 && (() => {const [year,q]=selected.split("-Q").map(Number);const start=`${year}-${String((q-1)*3+1).padStart(2,"0")}`,end=`${year}-${String(q*3).padStart(2,"0")}`;return range[0]>start || range[1]<end;})();
+    $("topicLinkContext").textContent = `分析范围：${range.join(" — ")}。${selected ? `当前主题：${quarterLabel(selected)}。` : ""}${partial ? "主题按完整季度统计，未裁剪到所选月份。" : ""}${context.isFiltered ? `当前方面为“${context.aspect}”；季度主题覆盖全部方面，不按方面筛选。` : "季度主题独立聚类，不等同于方面分类。"}`;
+    $("focusTopicQuarter").disabled = !selected;
+  }
   function navigation() {
+    renderContext();
     const position = available.findIndex(q => q.quarter === selected);
     $("topicPrevious").disabled = position < 0 || position === available.length - 1;
     $("topicNext").disabled = position <= 0;
@@ -56,7 +64,7 @@ export function createTopicsPanel(api) {
     $("topicCards").innerHTML = topics.length ? topics.map(topic => {
       const examples = topic.examples.map(example => {
         const url = safeGithubUrl(example.github_url);
-        return `<li><div class="topic-example-meta"><span>${escape(example.repository)} · ${escape(example.source_type)}</span><span>${dateLabel(example.created_at)}</span></div><p>${escape(example.text)}</p>${url ? `<a href="${escape(url)}" target="_blank" rel="noopener noreferrer">GitHub 原文 ↗</a>` : ""}</li>`;
+        return `<li><div class="topic-example-meta"><span>${escape(example.repository)} · ${escape(example.source_type)}</span><button class="example-month-link" data-example-month="${escape(example.created_at.slice(0,7))}" aria-label="在时间线查看 ${escape(example.created_at.slice(0,7))}">${dateLabel(example.created_at)} ↗</button></div><p>${escape(example.text)}</p>${url ? `<a href="${escape(url)}" target="_blank" rel="noopener noreferrer">GitHub 原文 ↗</a>` : ""}</li>`;
       }).join("");
       return `<article class="quarter-topic-card">
         <div class="quarter-topic-top"><span class="quarter-topic-id">主题 ${String(topic.topic_id + 1).padStart(2, "0")}</span><span>${number(topic.document_count)} 条 · ${percent(topic.share_within_quarter)}</span></div>
@@ -127,7 +135,8 @@ export function createTopicsPanel(api) {
       releaseLayout();
       return;
     }
-    const next = available.some(q => q.quarter === selected) ? selected : available[0].quarter;
+    const next = available.some(q => q.quarter === pendingQuarter) ? pendingQuarter : available.some(q => q.quarter === selected) ? selected : available[0].quarter;
+    pendingQuarter = null;
     const changed = next !== selected;
     selected = next;
     select.value = selected;
@@ -169,8 +178,11 @@ export function createTopicsPanel(api) {
       if (next) { selected = next.quarter; select.value = selected; loadQuarter(); }
     });
   }
+  $("focusTopicQuarter").addEventListener("click", () => { if (selected) onFocusQuarter(selected); });
   search.addEventListener("input", () => { if (detail) renderCards(); });
   root.addEventListener("click", event => {
+    const month = event.target.closest("[data-example-month]");
+    if (month && /^\d{4}-\d{2}$/.test(month.dataset.exampleMonth)) onFocusMonth(month.dataset.exampleMonth);
     if (event.target.closest("[data-topic-retry]")) refresh();
     if (event.target.closest("[data-topic-clear]")) { search.value = ""; renderCards(); search.focus(); }
   });
@@ -181,6 +193,13 @@ export function createTopicsPanel(api) {
       if (loadingIndex) return;
       if (index) applyRange();
       else if (!loadingIndex) refresh();
+    },
+    setContext(next) { context = next; renderContext(); },
+    async revealMonth(month) {
+      const [year,m] = month.split("-").map(Number);
+      pendingQuarter = `${year}-Q${Math.ceil(m/3)}`;
+      if (index) await applyRange();
+      else if (!loadingIndex) await refresh();
     },
     refresh
   };

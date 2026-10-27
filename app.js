@@ -1,9 +1,35 @@
+import { createAnalysisExplorer } from "./src/analysisExplorer.js";
 import { aspects, sentiments, mockAnalytics } from "./src/data/aspects.js";
 import { events } from "./src/data/mockEvents.js";
 import { analyticsApi } from "./src/services/analyticsApi.js";
 import { createTopicsPanel } from "./src/topicsPanel.js";
 
-const topicsPanel = createTopicsPanel(analyticsApi);
+const topicsPanel = createTopicsPanel(analyticsApi, {
+  onFocusQuarter(quarter) {
+    const [year, q] = quarter.split("-Q").map(Number);
+    focusAnalysisRange(`${year}-${String((q-1)*3+1).padStart(2,"0")}`, `${year}-${String(q*3).padStart(2,"0")}`);
+    jumpToAnalysis("timelinePanel");
+  },
+  onFocusMonth(month) { focusAnalysisRange(month, month); jumpToAnalysis("timelinePanel"); }
+});
+let previousAnalysisRange = null;
+let detailMonth = null;
+function jumpToAnalysis(id) { document.getElementById(id).scrollIntoView({behavior:matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",block:"start"}); }
+function focusAnalysisRange(start, end) {
+  if (allMonths[state.start] !== start || allMonths[state.end] !== end) previousAnalysisRange = [state.start,state.end];
+  setRange(monthIndex(start),monthIndex(end));
+}
+const analysisExplorer = createAnalysisExplorer({
+  onAspect: selectDimension,
+  onRestore() { if (!previousAnalysisRange) return; const [start,end] = previousAnalysisRange; previousAnalysisRange = null; setRange(start,end); },
+  onReset() { previousAnalysisRange = null; state.dimension = "overall"; state.keyword = null; $("#dimensionSelect").value = "overall"; setRange(monthIndex("2021-01"),monthIndex(latestMonth)); },
+  onJump: jumpToAnalysis
+});
+function renderAnalysisContext() {
+  const categories = currentAnalytics().categories;
+  analysisExplorer.render({ start:allMonths[state.start],end:allMonths[state.end],aspect:state.dimension,categories,canRestore:!!previousAnalysisRange,loading:!categories.length && !$("#syncState").classList.contains("error") });
+  topicsPanel.setContext({aspect:dimensionName(state.dimension),isFiltered:state.dimension !== "overall"});
+}
 
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
@@ -241,6 +267,7 @@ function showTrendTooltip(event, index) {
   tip.style.left = `${pos.left}px`; tip.style.top = `${pos.top}px`; tip.hidden = false;
 }
 function showMonthDetail(index, event = null) {
+  detailMonth = allMonths[index];
   closeTimelineEventPopover();
   const counts = monthCounts(index);
   const panel = $("#monthDetail");
@@ -250,7 +277,7 @@ function showMonthDetail(index, event = null) {
   panel.hidden = false;
   panel.scrollTop = 0;
   placeFloatingPanel(panel, event?.clientX ?? window.innerWidth/2, event?.clientY ?? window.innerHeight/3);
-  $("#closeMonthDetail").focus();
+  $("#closeMonthDetail").focus({preventScroll:true});
 }
 
 function showEventTooltip(event, item) {
@@ -275,6 +302,10 @@ function renderRadar() {
     const next = angle + item.total / total * Math.PI * 2;
     const point = t => `${300 + 130 * Math.cos(t)},${210 + 130 * Math.sin(t)}`;
     const path = createSvg("path", { d: `M300,210 L${point(angle)} A130,130 0 ${next-angle > Math.PI ? 1 : 0},1 ${point(next)} Z`, fill: categoryColors[i], stroke: "var(--panel-bg, #fff)", "stroke-width": 2, tabindex: 0, role: "button", "aria-label": `${item.name} ${item.total} 条` });
+    path.classList.add("aspect-sector");
+    path.classList.toggle("is-selected", state.dimension === item.id);
+    if (state.dimension !== "overall" && state.dimension !== item.id) path.setAttribute("opacity", ".35");
+    path.setAttribute("aria-pressed", String(state.dimension === item.id));
     path.addEventListener("click", () => openCategory(item.id));
     path.addEventListener("keydown", event => { if (["Enter", " "].includes(event.key)) { event.preventDefault(); openCategory(item.id); } });
     svg.append(path);
@@ -297,7 +328,7 @@ function renderRadar() {
     });
   });
   if (!total) svg.append(svgText(300,210, analyticsApi.runtime.useMock ? "暂无数据" : "等待后端分类统计数据", {"text-anchor":"middle",fill:"#68778f"}));
-  $("#profileTotal").textContent = `${total.toLocaleString()} 条方面标注`;
+  $("#profileTotal").textContent = `${total.toLocaleString()} 次方面提及 · ${dimensionName(state.dimension)}`;
   renderAspectScores(items);
   if (selectedCategory) renderCategoryDetail();
 }
@@ -316,7 +347,13 @@ function renderAspectScores(items) {
     const label = svgText(lx,ly-3,aspect.name, { fill: categoryColors[i],"font-size":12,"text-anchor":lx>320?"start":lx<280?"end":"middle" });
     const score = createSvg("tspan", { x: lx, dy: 16, "font-size": 12, "font-weight": 600 });
     score.textContent = item?.total ? emotionScore(item).toFixed(2) : "暂无数据";
-    label.append(score); svg.append(label);
+    label.append(score);
+    label.setAttribute("tabindex","0");label.setAttribute("role","button");label.setAttribute("class", "aspect-score-label");
+    label.setAttribute("aria-label",`${aspect.name}，评分 ${score.textContent}`);
+    if (state.dimension === aspect.id) label.setAttribute("font-weight","700");
+    label.addEventListener("click",()=>openCategory(aspect.id));
+    label.addEventListener("keydown",event=>{if(["Enter"," "].includes(event.key)){event.preventDefault();openCategory(aspect.id);}});
+    svg.append(label);
   });
   // Missing categories keep a gap rather than receiving a made-up score.
   const scores = aspects.map(aspect => items.find(item => item.id === aspect.id));
@@ -332,7 +369,7 @@ function renderCategoryDetail() {
   $("#categoryTotal").textContent = item ? `${item.total.toLocaleString()} 条` : "暂无统计数据";
   $("#categoryDetails").innerHTML = sentiments.map(s => `<section><h3><i style="background:${s.color}"></i>${s.name}<b>${(item?.[s.key] || 0).toLocaleString()} 条</b></h3></section>`).join("");
 }
-function openCategory(id) { selectedCategory = id; renderCategoryDetail(); $("#categoryPopover").hidden = false; $("#closeCategory").focus(); }
+function openCategory(id) { selectDimension(id); selectedCategory = id; renderCategoryDetail(); $("#categoryPopover").hidden = false; $("#closeCategory").focus({preventScroll:true}); }
 function renderRankings() {}
 function renderKeywords() {}
 function renderEventDetail() {
@@ -431,6 +468,7 @@ async function syncWarehouse() {
     updateMetrics();
     renderTimeline();
     renderRadar();
+    renderAnalysisContext();
     const updatedAt = snapshot.updated_at ? new Date(snapshot.updated_at) : null;
     const timeLabel = updatedAt && !Number.isNaN(updatedAt.getTime())
       ? updatedAt.toLocaleString("zh-CN", { hour12: false })
@@ -445,6 +483,7 @@ async function syncWarehouse() {
     renderRadar();
     syncState.classList.add("error");
     syncState.innerHTML = `<i></i> 数据接口暂不可用 · ${escapeHtml(error.message)}`;
+    renderAnalysisContext();
   }
 }
 
@@ -478,6 +517,7 @@ function renderAll() {
   renderRadar();
   renderRankings();
   renderKeywords();
+  renderAnalysisContext();
   renderEventDetail();
   updateMetrics();
   updateRangeUI();
@@ -485,7 +525,10 @@ function renderAll() {
 }
 
 function selectDimension(id) {
+  if (!dimensions.some(item => item.id === id)) return;
   closeTimelineEventPopover();
+  selectedCategory = null;
+  $("#categoryPopover").hidden = true;
   state.dimension = id;
   $("#dimensionSelect").value = id;
   renderAll();
@@ -848,3 +891,16 @@ $("#monthDetail").addEventListener("wheel", event => {
 }, { passive: false });
 document.addEventListener("pointerdown", event => { if (!event.target.closest(".monthly-popover, .month-point")) $("#monthDetail").hidden = true; });
 document.addEventListener("keydown", event => { if (event.key === "Escape") closeTimelineEventPopover(); });
+
+$("#viewMonthTopics").addEventListener("click", async () => {
+  const month = detailMonth;
+  if (!month) return;
+  closeTimelineEventPopover();
+  await topicsPanel.revealMonth(month);
+  jumpToAnalysis("topicsPanel");
+});
+$("#viewAspectTrend").addEventListener("click", () => {
+  $("#categoryPopover").hidden = true;
+  selectedCategory = null;
+  jumpToAnalysis("timelinePanel");
+});

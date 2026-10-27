@@ -66,11 +66,24 @@
       <main>
         <section class="page-intro" id="overview">
           <div>
-            <p>GITHUB COMMUNITY INTELLIGENCE</p>
+            <p>Rust 开发体验观察</p>
             <h1>Rust 社区情感总览</h1>
             <span>从真实工程讨论中，观察技术口碑、开发者痛点与生态变化</span>
           </div>
           <div class="sync-state" id="syncState"><i></i> 正在连接数据仓库…</div>
+        </section>
+
+        <section class="analysis-scope" aria-label="当前分析范围">
+          <div class="scope-path"><span>分析范围</span><strong id="analysisPeriod"></strong><span class="scope-separator">/</span><strong id="analysisAspectPath">全部方面</strong><button id="clearAnalysisAspect" class="scope-clear" hidden aria-label="清除方面筛选">×</button></div>
+          <div class="scope-actions"><button id="restoreAnalysisRange" hidden>返回上个时间范围</button><button id="resetAnalysis">重置分析</button></div>
+        </section>
+        <section id="analysisExplorer" class="panel analysis-explorer" aria-label="方面分析工作台">
+          <details class="explorer-tree-panel" open><summary>方面分类 <small>4 组 / 13 类</small></summary><label class="aspect-search"><span class="sr-only">搜索方面</span><input id="aspectSearch" type="search" placeholder="查找方面，如所有权、性能"></label><div id="aspectTree"></div><p class="explorer-footnote">分组用于浏览，不改变原有模型分类。</p></details>
+          <div class="explorer-context"><div class="explorer-context-heading"><div><h2 id="explorerTitle">从一个方面开始分析</h2><p id="explorerSubtitle"></p></div><span class="analysis-live">联动分析</span></div>
+            <div class="explorer-key-values"><div><span>方面提及次数</span><strong id="explorerTotal">—</strong></div><div><span>情感评分 <small>−1 至 1</small></span><strong id="explorerScore">—</strong></div></div>
+            <div id="explorerSentiments"></div><p class="explorer-footnote">按方面标注统计；一条语料可涉及多个方面。下方统计卡按语料去重。</p>
+            <div class="explorer-next"><button data-analysis-jump="timelinePanel">查看时间变化 <span>01</span></button><button data-analysis-jump="dimensionPanel">比较全部方面 <span>02</span></button><button data-analysis-jump="topicsPanel">阅读季度主题 <span>03</span></button></div>
+          </div>
         </section>
 
         <section class="metric-grid" aria-label="项目核心指标">
@@ -121,25 +134,27 @@
 
         <section class="analytics-grid">
           <article class="panel dimension-panel" id="dimensionPanel">
-            <div class="panel-head small"><div><span class="panel-index">02</span><div><h2>13 大类情感画像</h2><p>图中展示分类占比与评分；点击查看情感数量，关键词见 03 季度主题</p></div></div><span id="profileTotal"></span></div>
+            <div class="panel-head small"><div><span class="panel-index">02</span><div><h2>13 大类情感画像</h2><p>点击分类同步分析范围；保持全部方面可见，便于横向比较</p></div></div><span id="profileTotal"></span></div>
             <p class="profile-note">分类占比按方面标注次数统计；一条文本可涉及多个方面。</p>
             <div class="profile-charts"><div><h3>分类数据占比</h3><svg id="pieSvg" viewBox="0 0 600 420" role="img" aria-label="13 大类方面占比饼状图"></svg></div><div><h3>各类情感评分</h3><svg id="topicRadarSvg" viewBox="0 0 600 420" role="img" aria-label="13 类情感评分雷达图"></svg><p class="score-note">中心 −1 · 中间环 0 · 外圈 1</p></div></div>
           </article>
         </section>
         <aside id="categoryPopover" class="category-popover panel" role="dialog" aria-modal="false" aria-labelledby="categoryTitle" hidden>
-          <button id="closeCategory" class="event-detail-close" aria-label="关闭分类详情">×</button><h2 id="categoryTitle"></h2><p id="categoryRange"></p><div class="category-total">该类总数据量 <strong id="categoryTotal"></strong></div><div id="categoryDetails"></div>
+          <button id="closeCategory" class="event-detail-close" aria-label="关闭分类详情">×</button><h2 id="categoryTitle"></h2><p id="categoryRange"></p><div class="category-total">该类总数据量 <strong id="categoryTotal"></strong></div><div id="categoryDetails"></div><button id="viewAspectTrend" class="detail-link-button">在时间线查看此方面</button>
         </aside>
 
         <section class="panel quarterly-topics" id="topicsPanel" aria-labelledby="topicsTitle">
           <div class="panel-head topic-panel-head">
             <div><span class="panel-index">03</span><div><h2 id="topicsTitle">季度主题</h2></div></div>
           </div>
+          <div id="topicLinkContext" class="topic-link-context" aria-live="polite"></div>
           <div class="topic-range-row">
             <div class="topic-quarter-control">
               <button class="tool-button" id="topicPrevious" aria-label="上一季度" disabled>←</button>
               <label><span class="sr-only">主题季度</span><select id="topicQuarter" aria-label="主题季度" disabled><option>正在加载…</option></select></label>
               <button class="tool-button" id="topicNext" aria-label="下一季度" disabled>→</button>
             </div>
+            <button id="focusTopicQuarter" class="tool-button" disabled>时间线聚焦本季度</button>
           </div>
           <div id="topicBody">
             <div id="topicSummary" class="topic-summary" hidden></div>
@@ -157,7 +172,7 @@
     </div>
 
 
-            <aside id="monthDetail" class="panel monthly-popover" role="dialog" aria-labelledby="monthTitle" hidden><button id="closeMonthDetail" class="event-detail-close" aria-label="关闭月份详情">×</button><h2 id="monthTitle"></h2><p id="monthDimension"></p><div id="monthStatistics"></div></aside>
+            <aside id="monthDetail" class="panel monthly-popover" role="dialog" aria-labelledby="monthTitle" hidden><button id="closeMonthDetail" class="event-detail-close" aria-label="关闭月份详情">×</button><h2 id="monthTitle"></h2><p id="monthDimension"></p><div id="monthStatistics"></div><button id="viewMonthTopics" class="detail-link-button">查看该月份所在季度的主题</button></aside>
 
 
             <aside class="panel event-detail event-detail-float" id="eventDetail" hidden>
