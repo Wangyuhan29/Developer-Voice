@@ -30,7 +30,7 @@ export function createAnalysisExplorer({ onAspect, onRestore, onReset, onJump })
       if (!children.length) return '';
       return `<details data-group="${group.name}" ${text || openGroups.has(group.name) ? 'open' : ''}><summary><span>${group.name}</span><small>${children.length}</small></summary><div class="aspect-branches">${children.map(a => {
         const row = categories.find(c => c.id === a.id);
-        return `<button data-aspect="${a.id}" class="aspect-leaf${view.aspect === a.id ? ' is-selected' : ''}" aria-pressed="${view.aspect === a.id}"><span>${a.name}</span><small>${all && row ? (row.total / all * 100).toFixed(1) + '%' : '—'}</small></button>`;
+        return `<button data-aspect="${a.id}" class="aspect-leaf${view.aspect === a.id ? ' is-selected' : ''}${view.relatedAspects?.includes(a.id) ? ' is-topic-related' : ''}" aria-pressed="${view.aspect === a.id}"><span>${a.name}</span><small>${all && row ? (row.total / all * 100).toFixed(1) + '%' : '—'}</small></button>`;
       }).join('')}</div></details>`;
     }).join('') + (!hits ? '<p class="explorer-empty">没有匹配的方面，试试“性能”或“工具”。</p>' : '');
     tree.querySelectorAll('details').forEach(el => el.addEventListener('toggle', () => { if (!query.value.trim()) { if (el.open) openGroups.add(el.dataset.group); else openGroups.delete(el.dataset.group); } }));
@@ -67,8 +67,8 @@ export function createAnalysisExplorer({ onAspect, onRestore, onReset, onJump })
         for (const key of ['total', 'positive', 'neutral', 'negative']) sum[key] += c[key] || 0;
         return sum;
       }, {total:0,positive:0,neutral:0,negative:0});
-      root.querySelector('#explorerTitle').textContent = item?.name || '从一个方面开始分析';
-      root.querySelector('#explorerSubtitle').textContent = item ? '时间线、统计卡和画像已同步到当前方面。' : '选择左侧分类，沿时间变化追踪 Rust 开发体验。';
+      root.querySelector('#explorerTitle').textContent = item?.name || '当前时间范围的方面概览';
+      root.querySelector('#explorerSubtitle').textContent = item ? '与 02 同步选择；下方优先展示代表语料命中的主题。' : '左侧选择方面，下方核对主题和真实代表语料。';
       root.querySelector('#explorerTotal').textContent = view.loading ? '同步中…' : counts ? `${number(counts.total)} 次` : '暂无数据';
       const score = counts?.total ? (counts.positive-counts.negative)/counts.total : null;
       root.querySelector('#explorerScore').textContent = view.loading ? '—' : score === null ? '—' : score.toFixed(2);

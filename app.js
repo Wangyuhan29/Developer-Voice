@@ -10,9 +10,16 @@ const topicsPanel = createTopicsPanel(analyticsApi, {
     focusAnalysisRange(`${year}-${String((q-1)*3+1).padStart(2,"0")}`, `${year}-${String(q*3).padStart(2,"0")}`);
     jumpToAnalysis("timelinePanel");
   },
-  onFocusMonth(month) { focusAnalysisRange(month, month); jumpToAnalysis("timelinePanel"); }
+  onFocusMonth(month) { focusAnalysisRange(month, month); jumpToAnalysis("timelinePanel"); },
+  onSelectTopic(topic) {
+    const changed = selectedTopicLink !== topic;
+    selectedTopicLink = topic;
+    if (changed) {renderRadar();renderExplorerOnly();}
+    if (topic) jumpToAnalysis("dimensionPanel");
+  }
 });
 let previousAnalysisRange = null;
+let selectedTopicLink = null;
 let detailMonth = null;
 function jumpToAnalysis(id) { document.getElementById(id).scrollIntoView({behavior:matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",block:"start"}); }
 function focusAnalysisRange(start, end) {
@@ -25,10 +32,13 @@ const analysisExplorer = createAnalysisExplorer({
   onReset() { previousAnalysisRange = null; state.dimension = "overall"; state.keyword = null; $("#dimensionSelect").value = "overall"; setRange(monthIndex("2021-01"),monthIndex(latestMonth)); },
   onJump: jumpToAnalysis
 });
-function renderAnalysisContext() {
+function renderExplorerOnly() {
   const categories = currentAnalytics().categories;
-  analysisExplorer.render({ start:allMonths[state.start],end:allMonths[state.end],aspect:state.dimension,categories,canRestore:!!previousAnalysisRange,loading:!categories.length && !$("#syncState").classList.contains("error") });
-  topicsPanel.setContext({aspect:dimensionName(state.dimension),isFiltered:state.dimension !== "overall"});
+  analysisExplorer.render({ start:allMonths[state.start],end:allMonths[state.end],aspect:state.dimension,categories,relatedAspects:selectedTopicLink?.aspects || [],canRestore:!!previousAnalysisRange,loading:!categories.length && !$("#syncState").classList.contains("error") });
+}
+function renderAnalysisContext() {
+  renderExplorerOnly();
+  topicsPanel.setContext({aspect:dimensionName(state.dimension),aspectId:state.dimension,isFiltered:state.dimension !== "overall"});
 }
 
 const $ = selector => document.querySelector(selector);
@@ -304,7 +314,9 @@ function renderRadar() {
     const path = createSvg("path", { d: `M300,210 L${point(angle)} A130,130 0 ${next-angle > Math.PI ? 1 : 0},1 ${point(next)} Z`, fill: categoryColors[i], stroke: "var(--panel-bg, #fff)", "stroke-width": 2, tabindex: 0, role: "button", "aria-label": `${item.name} ${item.total} 条` });
     path.classList.add("aspect-sector");
     path.classList.toggle("is-selected", state.dimension === item.id);
-    if (state.dimension !== "overall" && state.dimension !== item.id) path.setAttribute("opacity", ".35");
+    const related = selectedTopicLink?.aspects.includes(item.id);
+    path.classList.toggle("is-topic-related", !!related);
+    if (selectedTopicLink ? !related : state.dimension !== "overall" && state.dimension !== item.id) path.setAttribute("opacity", ".3");
     path.setAttribute("aria-pressed", String(state.dimension === item.id));
     path.addEventListener("click", () => openCategory(item.id));
     path.addEventListener("keydown", event => { if (["Enter", " "].includes(event.key)) { event.preventDefault(); openCategory(item.id); } });
@@ -329,6 +341,16 @@ function renderRadar() {
   });
   if (!total) svg.append(svgText(300,210, analyticsApi.runtime.useMock ? "暂无数据" : "等待后端分类统计数据", {"text-anchor":"middle",fill:"#68778f"}));
   $("#profileTotal").textContent = `${total.toLocaleString()} 次方面提及 · ${dimensionName(state.dimension)}`;
+  const topicFocus = $("#profileTopicFocus");
+  topicFocus.hidden = !selectedTopicLink;
+  if (selectedTopicLink) {
+    topicFocus.replaceChildren();
+    const text = document.createElement("span");
+    text.textContent = `主题“${selectedTopicLink.name}”的代表语料涉及：${selectedTopicLink.aspects.map(dimensionName).join("、")}。高亮为语料关联，不代表整个主题的方面占比。`;
+    const clear = document.createElement("button");clear.textContent="清除主题高亮";
+    clear.addEventListener("click",()=>{selectedTopicLink=null;topicsPanel.clearTopicSelection();renderRadar();renderExplorerOnly();});
+    topicFocus.append(text,clear);
+  }
   renderAspectScores(items);
   if (selectedCategory) renderCategoryDetail();
 }
@@ -350,7 +372,8 @@ function renderAspectScores(items) {
     label.append(score);
     label.setAttribute("tabindex","0");label.setAttribute("role","button");label.setAttribute("class", "aspect-score-label");
     label.setAttribute("aria-label",`${aspect.name}，评分 ${score.textContent}`);
-    if (state.dimension === aspect.id) label.setAttribute("font-weight","700");
+    if (state.dimension === aspect.id || selectedTopicLink?.aspects.includes(aspect.id)) label.setAttribute("font-weight","700");
+    if (selectedTopicLink && !selectedTopicLink.aspects.includes(aspect.id)) label.setAttribute("opacity",".35");
     label.addEventListener("click",()=>openCategory(aspect.id));
     label.addEventListener("keydown",event=>{if(["Enter"," "].includes(event.key)){event.preventDefault();openCategory(aspect.id);}});
     svg.append(label);
@@ -525,6 +548,8 @@ function renderAll() {
 }
 
 function selectDimension(id) {
+  selectedTopicLink = null;
+  topicsPanel.clearTopicSelection();
   if (!dimensions.some(item => item.id === id)) return;
   closeTimelineEventPopover();
   selectedCategory = null;
@@ -570,6 +595,7 @@ function selectEvent(event, pointerEvent = null) {
   $("#dimensionSelect").value = state.dimension;
   state.keyword = null;
   renderAll();
+  topicsPanel.revealMonth(event.date);
 }
 
 function closeTimelineEventPopover() {
@@ -580,6 +606,8 @@ function closeTimelineEventPopover() {
 }
 
 function setRange(start, end, source = "custom") {
+  selectedTopicLink = null;
+  topicsPanel.clearTopicSelection();
   closeTimelineEventPopover();
   state.start = clamp(Math.min(start, end), 0, allMonths.length - 1);
   state.end = clamp(Math.max(start, end), 0, allMonths.length - 1);
@@ -902,5 +930,7 @@ $("#viewMonthTopics").addEventListener("click", async () => {
 $("#viewAspectTrend").addEventListener("click", () => {
   $("#categoryPopover").hidden = true;
   selectedCategory = null;
-  jumpToAnalysis("timelinePanel");
+  jumpToAnalysis("topicsPanel");
 });
+
+$("#openInvestigation").addEventListener("click",()=>jumpToAnalysis("topicsPanel"));

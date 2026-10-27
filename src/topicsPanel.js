@@ -1,3 +1,5 @@
+import { createTopicEvidence, quarterRange, relateTopic } from "./topicEvidence.js";
+import { aspects } from "./data/aspects.js";
 const escape = value => String(value ?? "").replace(/[&<>"']/g, char => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
 })[char]);
@@ -13,7 +15,7 @@ const safeGithubUrl = value => {
   } catch { return null; }
 };
 
-export function createTopicsPanel(api, { onFocusQuarter = () => {}, onFocusMonth = () => {} } = {}) {
+export function createTopicsPanel(api, { onFocusQuarter = () => {}, onFocusMonth = () => {}, onSelectTopic = () => {} } = {}) {
   const root = document.querySelector("#topicsPanel");
   const $ = id => root.querySelector(`#${id}`);
   const select = $("topicQuarter");
@@ -26,7 +28,32 @@ export function createTopicsPanel(api, { onFocusQuarter = () => {}, onFocusMonth
   let requestVersion = 0;
   let loadingIndex = false;
   let pendingQuarter = null;
-  let context = {aspect:"全部方面",isFiltered:false};
+  let context = {aspect:"全部方面",aspectId:"overall",isFiltered:false};
+  let evidence = {rows:new Map(),complete:false,count:0};
+  let evidenceState = "idle", evidenceVersion = 0;
+  let onlyRelated = false, activeTopic = null;
+  const loadEvidence = createTopicEvidence(api);
+  function relation(topic) {return relateTopic(topic,evidence,context.aspectId || 'overall');}
+  function evidenceTools() {
+    const filtered = context.aspectId && context.aspectId !== 'overall';
+    const count = detail?.topics.filter(topic => relation(topic).matches > 0).length || 0;
+    const text = evidenceState === 'loading' ? '正在依据真实语料核对方面与主题的关联…' : evidenceState === 'error' ? '代表语料关联暂不可用；下方仍展示完整季度主题。' : evidenceState === 'ready' ? `${filtered ? `“${context.aspect}”命中 ${count} 个主题的代表语料。` : `已核对 ${evidence.count.toLocaleString()} 条方面标注。`}${!evidence.complete ? '部分明细尚未覆盖，未命中不等于无关联。' : ''}关联仅依据当前时间范围内的代表语料，不代表整个主题的方面构成。` : '';
+    $("topicEvidenceStatus").textContent = text;
+    $("relatedTopicsOnly").disabled = evidenceState !== 'ready' || !filtered;
+    $("relatedTopicsOnly").setAttribute('aria-pressed',String(onlyRelated));
+    $("relatedTopicsOnly").hidden = !filtered;
+  }
+  async function updateEvidence() {
+    const version = ++evidenceVersion, q = quarterRange(selected);
+    evidence = {rows:new Map(),complete:false,count:0};
+    if (!detail || !q || range.length !== 2) { evidenceState='idle';evidenceTools();return; }
+    const start = range[0] > q[0] ? range[0] : q[0], end = range[1] < q[1] ? range[1] : q[1];
+    if (start > end) { evidenceState='ready';evidenceTools();renderCards();return; }
+    evidenceState='loading';evidenceTools();renderCards();
+    try {const result=await loadEvidence(start,end);if(version!==evidenceVersion)return;evidence=result;evidenceState='ready';}
+    catch {if(version!==evidenceVersion)return;evidenceState='error';onlyRelated=false;}
+    evidenceTools();renderCards();
+  }
 
   function holdLayout() {
     const body = $("topicBody");
@@ -40,12 +67,14 @@ export function createTopicsPanel(api, { onFocusQuarter = () => {}, onFocusMonth
   function showMessage(title, retry = false) {
     $("topicSummary").hidden = true;
     $("topicTools").hidden = true;
+    $("topicEvidenceStatus").textContent = "";
+    $("relatedTopicsOnly").hidden = true;
     $("topicCards").innerHTML = `<div class="topic-empty"><h3>${escape(title)}</h3>${retry ? '<button class="tool-button" data-topic-retry>重新加载</button>' : ""}</div>`;
   }
 
   function renderContext() {
     const partial = selected && range.length === 2 && (() => {const [year,q]=selected.split("-Q").map(Number);const start=`${year}-${String((q-1)*3+1).padStart(2,"0")}`,end=`${year}-${String(q*3).padStart(2,"0")}`;return range[0]>start || range[1]<end;})();
-    $("topicLinkContext").textContent = `分析范围：${range.join(" — ")}。${selected ? `当前主题：${quarterLabel(selected)}。` : ""}${partial ? "主题按完整季度统计，未裁剪到所选月份。" : ""}${context.isFiltered ? `当前方面为“${context.aspect}”；季度主题覆盖全部方面，不按方面筛选。` : "季度主题独立聚类，不等同于方面分类。"}`;
+    $("topicLinkContext").textContent = `分析范围：${range.join(" — ")}。${selected ? `当前主题：${quarterLabel(selected)}。` : ""}${partial ? "主题按完整季度统计，未裁剪到所选月份。" : ""}${context.isFiltered ? `当前方面为“${context.aspect}”；主题统计保留完整季度，下面用代表语料核对方面关联。` : "季度主题独立聚类，不等同于方面分类。"}`;
     $("focusTopicQuarter").disabled = !selected;
   }
   function navigation() {
@@ -60,20 +89,27 @@ export function createTopicsPanel(api, { onFocusQuarter = () => {}, onFocusMonth
     const query = search.value.trim().toLowerCase();
     const topics = detail.topics.filter(topic =>
       `${topic.name} ${topic.keywords.map(k => k.term).join(" ")}`.toLowerCase().includes(query)
-    );
+    ).filter(topic => !onlyRelated || relation(topic).matches > 0)
+      .sort((a,b) => Number(relation(b).matches > 0)-Number(relation(a).matches > 0) || b.document_count-a.document_count);
     $("topicCards").innerHTML = topics.length ? topics.map(topic => {
+      const link = relation(topic);
+      const isRelated = context.isFiltered && link.matches > 0;
       const examples = topic.examples.map(example => {
         const url = safeGithubUrl(example.github_url);
-        return `<li><div class="topic-example-meta"><span>${escape(example.repository)} · ${escape(example.source_type)}</span><button class="example-month-link" data-example-month="${escape(example.created_at.slice(0,7))}" aria-label="在时间线查看 ${escape(example.created_at.slice(0,7))}">${dateLabel(example.created_at)} ↗</button></div><p>${escape(example.text)}</p>${url ? `<a href="${escape(url)}" target="_blank" rel="noopener noreferrer">GitHub 原文 ↗</a>` : ""}</li>`;
+        const ids = [...(evidence.rows.get(String(example.corpus_id)) || [])];
+        const tags = ids.map(id => `<span class="example-aspect-tag${id === context.aspectId ? ' is-related' : ''}">${escape(aspects.find(a=>a.id===id)?.name || id)}</span>`).join('');
+        return `<li><div class="example-aspect-tags">${tags}</div><div class="topic-example-meta"><span>${escape(example.repository)} · ${escape(example.source_type)}</span><button class="example-month-link" data-example-month="${escape(example.created_at.slice(0,7))}" aria-label="在时间线查看 ${escape(example.created_at.slice(0,7))}">${dateLabel(example.created_at)} ↗</button></div><p>${escape(example.text)}</p>${url ? `<a href="${escape(url)}" target="_blank" rel="noopener noreferrer">GitHub 原文 ↗</a>` : ""}</li>`;
       }).join("");
-      return `<article class="quarter-topic-card">
+      return `<article class="quarter-topic-card${isRelated ? ' has-related-evidence' : ''}${activeTopic === topic.topic_id ? ' is-linked-topic' : ''}">
         <div class="quarter-topic-top"><span class="quarter-topic-id">主题 ${String(topic.topic_id + 1).padStart(2, "0")}</span><span>${number(topic.document_count)} 条 · ${percent(topic.share_within_quarter)}</span></div>
         <h3>${escape(topic.name)}</h3>
+        ${isRelated ? `<div class="topic-relation-badge">${escape(context.aspect)} · ${link.matches} 条代表语料命中</div>` : ''}
         <div class="quarter-topic-bar" aria-hidden="true"><i style="width:${Math.min(100, Math.max(0, topic.share_within_quarter * 100))}%"></i></div>
         <ul class="quarter-topic-keywords" aria-label="主题关键词">${topic.keywords.slice(0, 8).map(k => `<li>${escape(k.term)}</li>`).join("")}</ul>
+        <button class="topic-profile-link" data-link-topic="${topic.topic_id}" ${!link.ids.length || evidenceState !== 'ready' ? 'disabled' : ''}>在 02 画像突出相关方面${link.ids.length ? `（${link.ids.length} 类）` : ''}</button>
         ${examples ? `<details class="topic-examples"><summary>查看代表语料 <span>${topic.examples.length} 条</span></summary><ul>${examples}</ul></details>` : '<p class="topic-muted">暂无代表语料</p>'}
       </article>`;
-    }).join("") : '<div class="topic-empty"><h3>没有匹配的主题</h3><button class="tool-button" data-topic-clear>清空搜索</button></div>';
+    }).join("") : `<div class="topic-empty"><h3>${onlyRelated ? '当前方面暂未命中已展示的代表语料' : '没有匹配的主题'}</h3><button class="tool-button" data-topic-clear>显示全部主题</button></div>`;
   }
 
   function renderDetail() {
@@ -97,6 +133,7 @@ export function createTopicsPanel(api, { onFocusQuarter = () => {}, onFocusMonth
 
   async function loadQuarter() {
     const version = ++requestVersion;
+    ++evidenceVersion;activeTopic=null;onSelectTopic(null);
     holdLayout();
     detail = null;
     search.value = "";
@@ -109,6 +146,7 @@ export function createTopicsPanel(api, { onFocusQuarter = () => {}, onFocusMonth
       if (result.source !== "bertopic_quarterly" || result.run_name !== index.run_name || result.quarter !== selected) throw new Error("主题结果与所选季度不一致");
       detail = result;
       renderDetail();
+      if (detail.status === "ready") updateEvidence();
     } catch (error) {
       if (version !== requestVersion) return;
       showMessage("加载失败", true);
@@ -126,6 +164,7 @@ export function createTopicsPanel(api, { onFocusQuarter = () => {}, onFocusMonth
     select.replaceChildren(...available.map(q => new Option(`${quarterLabel(q.quarter)}${q.status === "insufficient" ? " · 样本不足" : q.status === "no_topics" ? " · 无主题" : ""}`, q.quarter)));
     if (!available.length) {
       ++requestVersion;
+      ++evidenceVersion; evidenceState="idle";activeTopic=null;onSelectTopic(null);
       selected = null;
       detail = null;
       select.add(new Option("该范围暂无季度", ""));
@@ -142,10 +181,12 @@ export function createTopicsPanel(api, { onFocusQuarter = () => {}, onFocusMonth
     select.value = selected;
     navigation();
     if (changed || force) return loadQuarter();
+    if (detail) updateEvidence();
   }
 
   async function refresh() {
     const version = ++requestVersion;
+    ++evidenceVersion;detail=null;activeTopic=null;onSelectTopic(null);
     holdLayout();
     loadingIndex = true;
     select.disabled = true;
@@ -178,23 +219,36 @@ export function createTopicsPanel(api, { onFocusQuarter = () => {}, onFocusMonth
       if (next) { selected = next.quarter; select.value = selected; loadQuarter(); }
     });
   }
+  $("relatedTopicsOnly").addEventListener("click", () => { onlyRelated=!onlyRelated;evidenceTools();if(detail)renderCards(); });
   $("focusTopicQuarter").addEventListener("click", () => { if (selected) onFocusQuarter(selected); });
   search.addEventListener("input", () => { if (detail) renderCards(); });
   root.addEventListener("click", event => {
+    const linked = event.target.closest('[data-link-topic]');
+    if (linked && detail && evidenceState === 'ready') {
+      const topic = detail.topics.find(t=>String(t.topic_id)===linked.dataset.linkTopic);
+      if (topic) {activeTopic=topic.topic_id;onSelectTopic({id:topic.topic_id,name:topic.name,aspects:relation(topic).ids});renderCards();}
+    }
     const month = event.target.closest("[data-example-month]");
     if (month && /^\d{4}-\d{2}$/.test(month.dataset.exampleMonth)) onFocusMonth(month.dataset.exampleMonth);
     if (event.target.closest("[data-topic-retry]")) refresh();
-    if (event.target.closest("[data-topic-clear]")) { search.value = ""; renderCards(); search.focus(); }
+    if (event.target.closest("[data-topic-clear]")) { search.value = ""; onlyRelated=false;evidenceTools();renderCards();search.focus(); }
   });
   return {
     setRange(start, end) {
       if (range[0] === start && range[1] === end) return;
+      activeTopic=null;onSelectTopic(null);
       range = [start, end].sort();
       if (loadingIndex) return;
       if (index) applyRange();
       else if (!loadingIndex) refresh();
     },
-    setContext(next) { context = next; renderContext(); },
+    setContext(next) {
+      const changed = context.aspectId !== next.aspectId;
+      context = next; renderContext();
+      if (changed) {onlyRelated=false;activeTopic=null;}
+      if (detail) {evidenceTools();renderCards();}
+    },
+    clearTopicSelection() {activeTopic=null;if(detail)renderCards();},
     async revealMonth(month) {
       const [year,m] = month.split("-").map(Number);
       pendingQuarter = `${year}-Q${Math.ceil(m/3)}`;
