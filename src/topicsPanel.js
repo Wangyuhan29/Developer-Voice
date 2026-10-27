@@ -1,3 +1,4 @@
+import { createTopicsRangeView } from "./topicsRangeView.js";
 import { createTopicEvidence, quarterRange, relateTopic } from "./topicEvidence.js";
 import { aspects } from "./data/aspects.js";
 const escape = value => String(value ?? "").replace(/[&<>"']/g, char => ({
@@ -18,6 +19,10 @@ const safeGithubUrl = value => {
 export function createTopicsPanel(api, { onFocusQuarter = () => {}, onFocusMonth = () => {}, onSelectTopic = () => {} } = {}) {
   const root = document.querySelector("#topicsPanel");
   const $ = id => root.querySelector(`#${id}`);
+  let mode="quarter";
+  const rangeView=createTopicsRangeView(api,{onFocusQuarter,onFocusMonth,onSelectTopic});
+  function setMode(next){mode=next;$("quarterTopicView").hidden=mode!=="quarter";$("topicRangeView").hidden=mode!=="range";root.querySelectorAll("[data-topic-mode]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.topicMode===mode)));onSelectTopic(null);rangeView.setActive(mode==="range");renderContext();}
+  root.querySelectorAll("[data-topic-mode]").forEach(b=>b.addEventListener("click",()=>setMode(b.dataset.topicMode)));
   const select = $("topicQuarter");
   const search = $("topicSearch");
   let index = null;
@@ -33,9 +38,9 @@ export function createTopicsPanel(api, { onFocusQuarter = () => {}, onFocusMonth
   let evidenceState = "idle", evidenceVersion = 0;
   let onlyRelated = false, activeTopic = null;
   const loadEvidence = createTopicEvidence(api);
-  function relation(topic) {return relateTopic(topic,evidence,context.aspectId || 'overall');}
+  function relation(topic) {return relateTopic(topic,evidence,context.aspectIds || context.aspectId || 'overall');}
   function evidenceTools() {
-    const filtered = context.aspectId && context.aspectId !== 'overall';
+    const filtered = context.isFiltered;
     const count = detail?.topics.filter(topic => relation(topic).matches > 0).length || 0;
     const text = evidenceState === 'loading' ? '正在依据真实语料核对方面与主题的关联…' : evidenceState === 'error' ? '代表语料关联暂不可用；下方仍展示完整季度主题。' : evidenceState === 'ready' ? `${filtered ? `“${context.aspect}”命中 ${count} 个主题的代表语料。` : `已核对 ${evidence.count.toLocaleString()} 条方面标注。`}${!evidence.complete ? '部分明细尚未覆盖，未命中不等于无关联。' : ''}关联仅依据当前时间范围内的代表语料，不代表整个主题的方面构成。` : '';
     $("topicEvidenceStatus").textContent = text;
@@ -73,6 +78,7 @@ export function createTopicsPanel(api, { onFocusQuarter = () => {}, onFocusMonth
   }
 
   function renderContext() {
+    if(mode==="range") {$("topicLinkContext").textContent=`分析范围：${range.join(" — ")}。按时间段浏览相交季度；主题保留各季度独立结果。当前方面：${context.aspect}。`;return;}
     const partial = selected && range.length === 2 && (() => {const [year,q]=selected.split("-Q").map(Number);const start=`${year}-${String((q-1)*3+1).padStart(2,"0")}`,end=`${year}-${String(q*3).padStart(2,"0")}`;return range[0]>start || range[1]<end;})();
     $("topicLinkContext").textContent = `分析范围：${range.join(" — ")}。${selected ? `当前主题：${quarterLabel(selected)}。` : ""}${partial ? "主题按完整季度统计，未裁剪到所选月份。" : ""}${context.isFiltered ? `当前方面为“${context.aspect}”；主题统计保留完整季度，下面用代表语料核对方面关联。` : "季度主题独立聚类，不等同于方面分类。"}`;
     $("focusTopicQuarter").disabled = !selected;
@@ -97,7 +103,7 @@ export function createTopicsPanel(api, { onFocusQuarter = () => {}, onFocusMonth
       const examples = topic.examples.map(example => {
         const url = safeGithubUrl(example.github_url);
         const ids = [...(evidence.rows.get(String(example.corpus_id)) || [])];
-        const tags = ids.map(id => `<span class="example-aspect-tag${id === context.aspectId ? ' is-related' : ''}">${escape(aspects.find(a=>a.id===id)?.name || id)}</span>`).join('');
+        const tags = ids.map(id => `<span class="example-aspect-tag${context.aspectIds?.includes(id) ? ' is-related' : ''}">${escape(aspects.find(a=>a.id===id)?.name || id)}</span>`).join('');
         return `<li><div class="example-aspect-tags">${tags}</div><div class="topic-example-meta"><span>${escape(example.repository)} · ${escape(example.source_type)}</span><button class="example-month-link" data-example-month="${escape(example.created_at.slice(0,7))}" aria-label="在时间线查看 ${escape(example.created_at.slice(0,7))}">${dateLabel(example.created_at)} ↗</button></div><p>${escape(example.text)}</p>${url ? `<a href="${escape(url)}" target="_blank" rel="noopener noreferrer">GitHub 原文 ↗</a>` : ""}</li>`;
       }).join("");
       return `<article class="quarter-topic-card${isRelated ? ' has-related-evidence' : ''}${activeTopic === topic.topic_id ? ' is-linked-topic' : ''}">
@@ -198,7 +204,7 @@ export function createTopicsPanel(api, { onFocusQuarter = () => {}, onFocusMonth
       const result = await api.getTopicQuarters();
       if (version !== requestVersion) return;
       if (result.source !== "bertopic_quarterly") throw new Error("未获取到真实季度主题结果");
-      index = result;
+      index = result;rangeView.setIndex(index);
       loadingIndex = false;
       await applyRange(true);
     } catch (error) {
@@ -237,19 +243,20 @@ export function createTopicsPanel(api, { onFocusQuarter = () => {}, onFocusMonth
     setRange(start, end) {
       if (range[0] === start && range[1] === end) return;
       activeTopic=null;onSelectTopic(null);
-      range = [start, end].sort();
+      range = [start, end].sort();rangeView.setRange(...range);
       if (loadingIndex) return;
       if (index) applyRange();
       else if (!loadingIndex) refresh();
     },
     setContext(next) {
-      const changed = context.aspectId !== next.aspectId;
-      context = next; renderContext();
+      const changed = JSON.stringify(context.aspectIds) !== JSON.stringify(next.aspectIds);
+      context = next; rangeView.setContext(next);renderContext();
       if (changed) {onlyRelated=false;activeTopic=null;}
       if (detail) {evidenceTools();renderCards();}
     },
-    clearTopicSelection() {activeTopic=null;if(detail)renderCards();},
+    clearTopicSelection() {rangeView.clearTopicSelection();activeTopic=null;if(detail)renderCards();},
     async revealMonth(month) {
+      setMode("quarter");
       const [year,m] = month.split("-").map(Number);
       pendingQuarter = `${year}-Q${Math.ceil(m/3)}`;
       if (index) await applyRange();

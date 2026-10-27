@@ -10,7 +10,7 @@ export const aspectGroups = [
 const escape = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const number = n => Number(n || 0).toLocaleString('zh-CN');
 
-export function createAnalysisExplorer({ onAspect, onRestore, onReset, onJump }) {
+export function createAnalysisExplorer({ onAspect, onSelection, onRestore, onReset, onJump }) {
   const root = document.querySelector('#analysisExplorer');
   const tree = root.querySelector('#aspectTree');
   const query = root.querySelector('#aspectSearch');
@@ -24,13 +24,13 @@ export function createAnalysisExplorer({ onAspect, onRestore, onReset, onJump })
     const categories = view.categories;
     const all = categories.reduce((sum, c) => sum + c.total, 0);
     let hits = 0;
-    tree.innerHTML = `<button class="aspect-all${view.aspect === 'overall' ? ' is-selected' : ''}" data-aspect="overall" aria-pressed="${view.aspect === 'overall'}"><span>全部方面</span><small>13 类</small></button>` + aspectGroups.map(group => {
+    tree.innerHTML = `<div class="aspect-selection-actions"><button data-all-aspects>全选</button><button data-no-aspects>清空</button><small>已选 ${view.selectedAspects.length} / 13</small></div><button class="aspect-all${view.aspect === 'overall' ? ' is-selected' : ''}" data-aspect="overall" aria-pressed="${view.aspect === 'overall'}"><span>全部方面</span><small>13 类</small></button>` + aspectGroups.map(group => {
       const children = group.ids.map(id => aspects.find(a => a.id === id)).filter(a => `${a.name} ${a.id} ${group.name}`.toLowerCase().includes(text));
       hits += children.length;
       if (!children.length) return '';
-      return `<details data-group="${group.name}" ${text || openGroups.has(group.name) ? 'open' : ''}><summary><span>${group.name}</span><small>${children.length}</small></summary><div class="aspect-branches">${children.map(a => {
+      return `<details data-group="${group.name}" ${text || openGroups.has(group.name) ? 'open' : ''}><summary><span>${group.name}</span><small>${children.length}</small></summary><div class="aspect-branches"><button class="aspect-group-toggle" data-select-group="${group.name}">${group.ids.every(id=>view.selectedAspects.includes(id)) ? "取消本组" : "选择本组"}</button>${children.map(a => {
         const row = categories.find(c => c.id === a.id);
-        return `<button data-aspect="${a.id}" class="aspect-leaf${view.aspect === a.id ? ' is-selected' : ''}${view.relatedAspects?.includes(a.id) ? ' is-topic-related' : ''}" aria-pressed="${view.aspect === a.id}"><span>${a.name}</span><small>${all && row ? (row.total / all * 100).toFixed(1) + '%' : '—'}</small></button>`;
+        return `<button data-aspect="${a.id}" class="aspect-leaf${view.selectedAspects.includes(a.id) ? ' is-selected' : ''}${view.relatedAspects?.includes(a.id) ? ' is-topic-related' : ''}" aria-pressed="${view.selectedAspects.includes(a.id)}"><span>${a.name}</span><small>${all && row ? (row.total / all * 100).toFixed(1) + '%' : '—'}</small></button>`;
       }).join('')}</div></details>`;
     }).join('') + (!hits ? '<p class="explorer-empty">没有匹配的方面，试试“性能”或“工具”。</p>' : '');
     tree.querySelectorAll('details').forEach(el => el.addEventListener('toggle', () => { if (!query.value.trim()) { if (el.open) openGroups.add(el.dataset.group); else openGroups.delete(el.dataset.group); } }));
@@ -38,9 +38,13 @@ export function createAnalysisExplorer({ onAspect, onRestore, onReset, onJump })
   root.addEventListener('click', event => {
     const aspect = event.target.closest('[data-aspect]');
     if (aspect) {
-      onAspect(aspect.dataset.aspect);
-      if (matchMedia("(max-width: 700px)").matches) root.querySelector(".explorer-tree-panel").open = false;
+      const id=aspect.dataset.aspect;
+      onSelection(id === "overall" ? aspects.map(a=>a.id) : view.selectedAspects.includes(id) ? view.selectedAspects.filter(a=>a!==id) : [...view.selectedAspects,id]);
     }
+    if(event.target.closest('[data-all-aspects]')) onSelection(aspects.map(a=>a.id));
+    if(event.target.closest('[data-no-aspects]')) onSelection([]);
+    const groupButton=event.target.closest('[data-select-group]');
+    if(groupButton){const group=aspectGroups.find(g=>g.name===groupButton.dataset.selectGroup);onSelection(group.ids.every(id=>view.selectedAspects.includes(id)) ? view.selectedAspects.filter(id=>!group.ids.includes(id)) : [...new Set([...view.selectedAspects,...group.ids])]);}
     const jump = event.target.closest('[data-analysis-jump]');
     if (jump) onJump(jump.dataset.analysisJump);
   });
@@ -59,16 +63,16 @@ export function createAnalysisExplorer({ onAspect, onRestore, onReset, onJump })
       const item = aspects.find(a => a.id === view.aspect);
       const group = aspectGroups.find(g => g.ids.includes(view.aspect));
       document.querySelector('#analysisPeriod').textContent = `${view.start} — ${view.end}`;
-      document.querySelector('#analysisAspectPath').textContent = item ? `${group.name} / ${item.name}` : '全部方面';
-      document.querySelector('#clearAnalysisAspect').hidden = !item;
+      document.querySelector('#analysisAspectPath').textContent = item ? `${group.name} / ${item.name}` : view.selectedAspects.length===13 ? '全部方面' : view.selectedAspects.length ? `自由组合：${aspects.filter(a=>view.selectedAspects.includes(a.id)).map(a=>a.name).join('、')}` : '未选择方面';
+      document.querySelector('#clearAnalysisAspect').hidden = view.selectedAspects.length===13;
       document.querySelector('#restoreAnalysisRange').hidden = !view.canRestore;
       root.setAttribute('aria-busy', String(view.loading));
-      const counts = item ? view.categories.find(c => c.id === item.id) : view.categories.reduce((sum, c) => {
+      const counts = item ? view.categories.find(c => c.id === item.id) : view.categories.filter(c=>view.selectedAspects.includes(c.id)).reduce((sum, c) => {
         for (const key of ['total', 'positive', 'neutral', 'negative']) sum[key] += c[key] || 0;
         return sum;
       }, {total:0,positive:0,neutral:0,negative:0});
-      root.querySelector('#explorerTitle').textContent = item?.name || '当前时间范围的方面概览';
-      root.querySelector('#explorerSubtitle').textContent = item ? '与 02 同步选择；下方优先展示代表语料命中的主题。' : '左侧选择方面，下方核对主题和真实代表语料。';
+      root.querySelector('#explorerTitle').textContent = item?.name || (view.selectedAspects.length===13 ? '当前时间范围的方面概览' : `自由组合 · ${view.selectedAspects.length} 个方面`);
+      root.querySelector('#explorerSubtitle').textContent = item ? '与 02 同步选择；下方优先展示代表语料命中的主题。' : '左侧可叠加多个方面；主题按命中任一所选方面的代表语料关联。';
       root.querySelector('#explorerTotal').textContent = view.loading ? '同步中…' : counts ? `${number(counts.total)} 次` : '暂无数据';
       const score = counts?.total ? (counts.positive-counts.negative)/counts.total : null;
       root.querySelector('#explorerScore').textContent = view.loading ? '—' : score === null ? '—' : score.toFixed(2);

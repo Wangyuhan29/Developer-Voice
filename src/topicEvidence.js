@@ -9,7 +9,7 @@ export function quarterRange(quarter) {
 export function relateTopic(topic, evidence, aspect = 'overall') {
   const examples = (topic.examples || []).map(example => ({example, aspects:[...(evidence.rows.get(String(example.corpus_id)) || [])]}));
   const ids = [...new Set(examples.flatMap(item => item.aspects))];
-  const matches = examples.filter(item => aspect === 'overall' ? item.aspects.length : item.aspects.includes(aspect));
+  const matches = examples.filter(item => Array.isArray(aspect) ? item.aspects.some(id=>aspect.includes(id)) : aspect === 'overall' ? item.aspects.length : item.aspects.includes(aspect));
   return { ids, matches:matches.length, examples };
 }
 export function createTopicEvidence(api) {

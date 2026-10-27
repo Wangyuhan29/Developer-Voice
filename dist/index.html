@@ -15,8 +15,8 @@
         document.documentElement.dataset.theme = resolved;
       })();
     </script>
-    <script type="module" crossorigin src="/assets/index-dro773QA.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-CNsGZl1E.css">
+    <script type="module" crossorigin src="/assets/index-CwLINddt.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-CEAIQrqb.css">
   </head>
   <body>
 
@@ -79,6 +79,12 @@
 
 
 
+        <section class="metric-grid" aria-label="项目核心指标">
+          <article><div class="metric-label"><span>已标注语料量</span><i class="metric-icon purple">▤</i></div><div class="metric-value"><strong id="totalDataValue">—</strong><small>条</small></div><div class="metric-change"><span>查询表中去重的语料</span></div></article>
+          <article><div class="metric-label"><span>方面标注量</span><i class="metric-icon cyan">✓</i></div><div class="metric-value"><strong id="validDataValue">—</strong><small>条</small></div><div class="metric-change"><span>一条语料可有多个方面</span></div></article>
+          <article><div class="metric-label"><span>正向数据量</span><i class="metric-icon blue">+</i></div><div class="metric-value"><strong id="positiveDataValue">—</strong><small>条</small></div><div class="metric-change"><span>含正面标签的去重语料</span></div></article>
+          <article><div class="metric-label"><span>负面问题量</span><i class="metric-icon red">!</i></div><div class="metric-value"><strong id="negativeDataValue">—</strong><small>条</small></div><div class="metric-change"><span>含负面标签的去重语料</span></div></article>
+        </section>
         <section class="panel timeline-panel" id="timelinePanel">
           <div class="panel-head">
             <div>
@@ -90,7 +96,7 @@
                 <select id="dimensionSelect"></select>
               </label>
               <div class="timeline-dates"><label><span>起始年月</span><div class="date-inputs"><input id="timelineStart" type="month" min="2010-01" max="2026-07" aria-label="时间线起始年月"></div></label><b>→</b><label><span>截止年月</span><div class="date-inputs"><input id="timelineEnd" type="month" min="2010-01" max="2026-07" aria-label="时间线截止年月"></div></label></div>
-              <button class="tool-button" id="resetView">重置</button>
+              <button class="tool-button" id="chooseAspectCombination">组合方面</button><button class="tool-button" id="resetView">重置</button>
             </div>
           </div>
 
@@ -122,12 +128,6 @@
           <div class="scope-path"><span>分析范围</span><strong id="analysisPeriod"></strong><span class="scope-separator">/</span><strong id="analysisAspectPath">全部方面</strong><button id="clearAnalysisAspect" class="scope-clear" hidden aria-label="清除方面筛选">×</button></div>
           <div class="scope-actions"><button id="restoreAnalysisRange" hidden>返回上个时间范围</button><button id="resetAnalysis">重置分析</button></div>
         </section>
-        <section class="metric-grid" aria-label="项目核心指标">
-          <article><div class="metric-label"><span>已标注语料量</span><i class="metric-icon purple">▤</i></div><div class="metric-value"><strong id="totalDataValue">—</strong><small>条</small></div><div class="metric-change"><span>查询表中去重的语料</span></div></article>
-          <article><div class="metric-label"><span>方面标注量</span><i class="metric-icon cyan">✓</i></div><div class="metric-value"><strong id="validDataValue">—</strong><small>条</small></div><div class="metric-change"><span>一条语料可有多个方面</span></div></article>
-          <article><div class="metric-label"><span>正向数据量</span><i class="metric-icon blue">+</i></div><div class="metric-value"><strong id="positiveDataValue">—</strong><small>条</small></div><div class="metric-change"><span>含正面标签的去重语料</span></div></article>
-          <article><div class="metric-label"><span>负面问题量</span><i class="metric-icon red">!</i></div><div class="metric-value"><strong id="negativeDataValue">—</strong><small>条</small></div><div class="metric-change"><span>含负面标签的去重语料</span></div></article>
-        </section>
         <section class="analytics-grid">
           <article class="panel dimension-panel" id="dimensionPanel">
             <div class="panel-head small"><div><span class="panel-index">02</span><div><h2>13 大类情感画像</h2><p>画像展示当前时间范围；选择方面后，在 03 查看对应主题线索</p></div></div><span id="profileTotal"></span></div>
@@ -148,8 +148,8 @@
 <div class="investigation-main"><div class="explorer-context"><div class="explorer-context-heading"><div><h2 id="explorerTitle">从一个方面开始分析</h2><p id="explorerSubtitle"></p></div><span class="analysis-live">联动分析</span></div>
             <div class="explorer-key-values"><div><span>方面提及次数</span><strong id="explorerTotal">—</strong></div><div><span>情感评分 <small>−1 至 1</small></span><strong id="explorerScore">—</strong></div></div>
             <div id="explorerSentiments"></div><p class="explorer-footnote">按方面标注统计；一条语料可涉及多个方面。全部板块沿用主图选定的时间范围。</p>
-</div><div id="topicLinkContext" class="topic-link-context" aria-live="polite"></div>
-          <div class="topic-range-row">
+</div><div class="topic-display-mode" role="group" aria-label="主题展示方式"><button data-topic-mode="quarter" aria-pressed="true">按季度</button><button data-topic-mode="range" aria-pressed="false">按时间段</button></div><div id="topicLinkContext" class="topic-link-context" aria-live="polite"></div>
+          <div id="quarterTopicView"><div class="topic-range-row">
             <div class="topic-quarter-control">
               <button class="tool-button" id="topicPrevious" aria-label="上一季度" disabled>←</button>
               <label><span class="sr-only">主题季度</span><select id="topicQuarter" aria-label="主题季度" disabled><option>正在加载…</option></select></label>
@@ -166,6 +166,7 @@
             </div>
             <div id="topicCards" class="topic-cards" aria-live="polite" aria-busy="true"><div class="topic-empty"><h3>加载中…</h3></div></div>
           </div>
+          </div><div id="topicRangeView" hidden></div>
           </div></div>
         </section>
 

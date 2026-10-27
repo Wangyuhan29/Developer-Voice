@@ -1,3 +1,4 @@
+import { createCombinationSummary } from "./src/combinationSummary.js";
 import { createAnalysisExplorer } from "./src/analysisExplorer.js";
 import { aspects, sentiments, mockAnalytics } from "./src/data/aspects.js";
 import { events } from "./src/data/mockEvents.js";
@@ -28,17 +29,18 @@ function focusAnalysisRange(start, end) {
 }
 const analysisExplorer = createAnalysisExplorer({
   onAspect: selectDimension,
+  onSelection: selectAspects,
   onRestore() { if (!previousAnalysisRange) return; const [start,end] = previousAnalysisRange; previousAnalysisRange = null; setRange(start,end); },
-  onReset() { previousAnalysisRange = null; state.dimension = "overall"; state.keyword = null; $("#dimensionSelect").value = "overall"; setRange(monthIndex("2021-01"),monthIndex(latestMonth)); },
+  onReset() { previousAnalysisRange = null; state.dimension = "overall"; state.selectedAspects = aspects.map(a=>a.id); state.keyword = null; $("#dimensionSelect").value = "overall"; setRange(monthIndex("2021-01"),monthIndex(latestMonth)); },
   onJump: jumpToAnalysis
 });
 function renderExplorerOnly() {
   const categories = currentAnalytics().categories;
-  analysisExplorer.render({ start:allMonths[state.start],end:allMonths[state.end],aspect:state.dimension,categories,relatedAspects:selectedTopicLink?.aspects || [],canRestore:!!previousAnalysisRange,loading:!categories.length && !$("#syncState").classList.contains("error") });
+  analysisExplorer.render({ start:allMonths[state.start],end:allMonths[state.end],aspect:state.dimension,selectedAspects:state.selectedAspects,categories,relatedAspects:selectedTopicLink?.aspects || [],canRestore:!!previousAnalysisRange,loading:!categories.length && !$("#syncState").classList.contains("error") });
 }
 function renderAnalysisContext() {
   renderExplorerOnly();
-  topicsPanel.setContext({aspect:dimensionName(state.dimension),aspectId:state.dimension,isFiltered:state.dimension !== "overall"});
+  topicsPanel.setContext({aspect:dimensionName(state.dimension),aspectId:state.dimension,aspectIds:state.selectedAspects,isFiltered:state.dimension !== "overall"});
 }
 
 const $ = selector => document.querySelector(selector);
@@ -89,6 +91,7 @@ const state = {
   start: monthIndex("2021-01"),
   end: monthIndex(latestMonth),
   dimension: "overall",
+  selectedAspects: aspects.map(a=>a.id),
   keyword: null,
   selectedEvent: events.find(event => event.date === "2024-11"),
   eventPopoverOpen: false,
@@ -99,7 +102,10 @@ const state = {
 };
 
 const dimensionById = id => dimensions.find(item => item.id === id) || dimensions[0];
-const dimensionName = id => dimensionById(id).name;
+const dimensionName = id => id === "custom" ? `自由组合（${state.selectedAspects.length} 类）` : id === "none" ? "未选择方面" : dimensionById(id).name;
+const loadCombinationSummary = createCombinationSummary(analyticsApi);
+let combinationSummary = null;
+const selectionKey = () => [allMonths[state.start],allMonths[state.end],...state.selectedAspects].join("/");
 const scoreAt = (monthIdx, dimension = state.dimension) => {
   const dimIndex = dimensions.findIndex(item => item.id === dimension);
   const base = dimensionById(dimension).score;
@@ -127,18 +133,19 @@ const sentimentAt = (monthIdx, dimension = state.dimension) => {
 
 function currentAnalytics() {
   const filters = warehouseSnapshot?.filters;
-  if (filters?.start_date === allMonths[state.start] && filters?.end_date === allMonths[state.end] && filters?.dimension === state.dimension && warehouseSnapshot?.analytics) return warehouseSnapshot.analytics;
+  if (filters?.start_date === allMonths[state.start] && filters?.end_date === allMonths[state.end] && filters?.dimension === warehouseFilters().dimension && warehouseSnapshot?.analytics) return warehouseSnapshot.analytics;
   return analyticsApi.runtime.useMock ? mockAnalytics(state.start, state.end) : { trend: [], categories: [] };
 }
 const emotionScore = counts => counts.total ? (counts.positive - counts.negative) / counts.total : 0;
 function monthCounts(index) {
   const row = currentAnalytics().trend.find(row => row.month === index || row.month === allMonths[index]);
-  return (state.dimension === "overall" ? row : row?.categories?.[state.dimension]) || { total: 0, positive: 0, neutral: 0, negative: 0 };
+  if (state.dimension === "overall") return row || {total:0,positive:0,neutral:0,negative:0};
+  return state.selectedAspects.reduce((sum,id)=>{for(const k of ["total","positive","neutral","negative"])sum[k]+=row?.categories?.[id]?.[k] || 0;return sum;},{total:0,positive:0,neutral:0,negative:0});
 }
 
 function populateControls() {
   ["#startDate", "#endDate", "#timelineStart", "#timelineEnd"].forEach(selector => { $(selector).max = latestMonth; });
-  $("#dimensionSelect").innerHTML = dimensions.map(item => `<option value="${item.id}">${item.name}</option>`).join("");
+  $("#dimensionSelect").innerHTML = [...dimensions,{id:"custom",name:"自由组合（在 03 选择）"},{id:"none",name:"未选择方面"}].map(item => `<option value="${item.id}">${item.name}</option>`).join("");
   $("#dimensionSelect").value = state.dimension;
 
 }
@@ -313,11 +320,11 @@ function renderRadar() {
     const point = t => `${300 + 130 * Math.cos(t)},${210 + 130 * Math.sin(t)}`;
     const path = createSvg("path", { d: `M300,210 L${point(angle)} A130,130 0 ${next-angle > Math.PI ? 1 : 0},1 ${point(next)} Z`, fill: categoryColors[i], stroke: "var(--panel-bg, #fff)", "stroke-width": 2, tabindex: 0, role: "button", "aria-label": `${item.name} ${item.total} 条` });
     path.classList.add("aspect-sector");
-    path.classList.toggle("is-selected", state.dimension === item.id);
+    path.classList.toggle("is-selected", state.selectedAspects.includes(item.id));
     const related = selectedTopicLink?.aspects.includes(item.id);
     path.classList.toggle("is-topic-related", !!related);
-    if (selectedTopicLink ? !related : state.dimension !== "overall" && state.dimension !== item.id) path.setAttribute("opacity", ".3");
-    path.setAttribute("aria-pressed", String(state.dimension === item.id));
+    if (selectedTopicLink ? !related : !state.selectedAspects.includes(item.id)) path.setAttribute("opacity", ".3");
+    path.setAttribute("aria-pressed", String(state.selectedAspects.includes(item.id)));
     path.addEventListener("click", () => openCategory(item.id));
     path.addEventListener("keydown", event => { if (["Enter", " "].includes(event.key)) { event.preventDefault(); openCategory(item.id); } });
     svg.append(path);
@@ -372,7 +379,7 @@ function renderAspectScores(items) {
     label.append(score);
     label.setAttribute("tabindex","0");label.setAttribute("role","button");label.setAttribute("class", "aspect-score-label");
     label.setAttribute("aria-label",`${aspect.name}，评分 ${score.textContent}`);
-    if (state.dimension === aspect.id || selectedTopicLink?.aspects.includes(aspect.id)) label.setAttribute("font-weight","700");
+    if (state.selectedAspects.includes(aspect.id) || selectedTopicLink?.aspects.includes(aspect.id)) label.setAttribute("font-weight","700");
     if (selectedTopicLink && !selectedTopicLink.aspects.includes(aspect.id)) label.setAttribute("opacity",".35");
     label.addEventListener("click",()=>openCategory(aspect.id));
     label.addEventListener("keydown",event=>{if(["Enter"," "].includes(event.key)){event.preventDefault();openCategory(aspect.id);}});
@@ -456,8 +463,8 @@ function positionEventPopover() {
 function updateMetrics() {
   const filters = warehouseSnapshot?.filters;
   const matches = filters?.start_date === allMonths[state.start]
-    && filters?.end_date === allMonths[state.end] && filters?.dimension === state.dimension;
-  const summary = matches ? warehouseSnapshot.summary : null;
+    && filters?.end_date === allMonths[state.end] && filters?.dimension === warehouseFilters().dimension;
+  const summary = state.dimension === "none" ? {total_count:0,aspect_count:0,positive_count:0,negative_count:0} : state.dimension === "custom" ? (combinationSummary?.key === selectionKey() ? combinationSummary.value : null) : matches ? warehouseSnapshot.summary : null;
   const entries = [
     ["totalDataValue", summary?.total_count ?? summary?.corpus_count],
     ["validDataValue", summary?.aspect_count ?? summary?.valid_count],
@@ -473,7 +480,7 @@ function warehouseFilters() {
   return {
     start_date: allMonths[state.start],
     end_date: allMonths[state.end],
-    dimension: state.dimension,
+    dimension: ["custom","none"].includes(state.dimension) ? "overall" : state.dimension,
     sentiment: state.sentiment,
     granularity: state.granularity
   };
@@ -492,6 +499,10 @@ async function syncWarehouse() {
     renderTimeline();
     renderRadar();
     renderAnalysisContext();
+    if(state.dimension === "custom") {
+      const key=selectionKey(), ids=[...state.selectedAspects], start=allMonths[state.start], end=allMonths[state.end];
+      loadCombinationSummary(start,end,ids).then(value=>{if(key!==selectionKey())return;combinationSummary={key,value};updateMetrics();}).catch(error=>{if(key!==selectionKey())return;syncState.classList.add("error");syncState.textContent=`组合去重统计暂不可用 · ${error.message}`;});
+    }
     const updatedAt = snapshot.updated_at ? new Date(snapshot.updated_at) : null;
     const timeLabel = updatedAt && !Number.isNaN(updatedAt.getTime())
       ? updatedAt.toLocaleString("zh-CN", { hour12: false })
@@ -554,9 +565,18 @@ function selectDimension(id) {
   closeTimelineEventPopover();
   selectedCategory = null;
   $("#categoryPopover").hidden = true;
+  state.selectedAspects = id === "overall" ? aspects.map(a=>a.id) : [id];
   state.dimension = id;
   $("#dimensionSelect").value = id;
   renderAll();
+}
+
+function selectAspects(ids) {
+  state.selectedAspects = aspects.map(a=>a.id).filter(id=>ids.includes(id));
+  state.dimension = state.selectedAspects.length === 13 ? "overall" : state.selectedAspects.length === 1 ? state.selectedAspects[0] : state.selectedAspects.length ? "custom" : "none";
+  selectedTopicLink=null;topicsPanel.clearTopicSelection();
+  selectedCategory=null;$("#categoryPopover").hidden=true;closeTimelineEventPopover();
+  $("#dimensionSelect").value=state.dimension;renderAll();
 }
 
 function selectKeyword(word) {
@@ -591,7 +611,7 @@ function selectEvent(event, pointerEvent = null) {
   state.eventPopoverPosition = pointerEvent
     ? { x: pointerEvent.clientX - viewportRect.left, y: pointerEvent.clientY - viewportRect.top }
     : { x: viewportRect.width / 2, y: viewportRect.height / 2 };
-  state.dimension = event.dimension;
+  state.dimension = event.dimension; state.selectedAspects=[event.dimension];
   $("#dimensionSelect").value = state.dimension;
   state.keyword = null;
   renderAll();
@@ -615,7 +635,8 @@ function setRange(start, end, source = "custom") {
   renderAll();
 }
 
-$("#dimensionSelect").addEventListener("change", event => selectDimension(event.target.value));
+$("#chooseAspectCombination").addEventListener("click",()=>{document.querySelector(".explorer-tree-panel").open=true;jumpToAnalysis("topicsPanel");});
+$("#dimensionSelect").addEventListener("change", event => {if(event.target.value === "custom") {$("#dimensionSelect").value=state.dimension;document.querySelector(".explorer-tree-panel").open=true;jumpToAnalysis("topicsPanel");return;} if(event.target.value === "none")selectAspects([]);else selectDimension(event.target.value);});
 $("#startDate").addEventListener("change", event => { if (event.target.value) setRange(monthIndex(event.target.value), state.end); });
 $("#endDate").addEventListener("change", event => { if (event.target.value) setRange(state.start, monthIndex(event.target.value)); });
 $$(".quick-ranges button").forEach(button => button.addEventListener("click", () => {
@@ -629,12 +650,12 @@ $$(".granularity button").forEach(button => button.addEventListener("click", () 
   renderTimeline();
 }));
 $("#resetView").addEventListener("click", () => {
-  state.start = monthIndex("2021-01"); state.end = monthIndex(latestMonth); state.dimension = "overall"; state.keyword = null; state.granularity = "quarter";
+  state.start = monthIndex("2021-01"); state.end = monthIndex(latestMonth); state.dimension = "overall"; state.selectedAspects = aspects.map(a=>a.id); state.keyword = null; state.granularity = "quarter";
   $("#dimensionSelect").value = "overall";
   $$(".granularity button").forEach(button => button.classList.toggle("active", button.dataset.scale === "quarter"));
   renderAll();
 });
-$("#clearFilter").addEventListener("click", () => { state.keyword = null; state.dimension = "overall"; $("#dimensionSelect").value = "overall"; renderAll(); });
+$("#clearFilter").addEventListener("click", () => { state.keyword = null; state.dimension = "overall"; state.selectedAspects = aspects.map(a=>a.id); $("#dimensionSelect").value = "overall"; renderAll(); });
 $("#timelineStart").addEventListener("change", event => { if (event.target.value) setRange(monthIndex(event.target.value), state.end); });
 $("#timelineEnd").addEventListener("change", event => { if (event.target.value) setRange(state.start, monthIndex(event.target.value)); });
 // Keep wheel input inside the details panel, including at either scroll boundary.
