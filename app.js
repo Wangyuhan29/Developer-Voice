@@ -1,3 +1,5 @@
+import { createChangeProbe } from "./src/changeProbe.js";
+import { createAspectPreview } from "./src/aspectPreview.js";
 import { createCombinationSummary } from "./src/combinationSummary.js";
 import { createAnalysisExplorer } from "./src/analysisExplorer.js";
 import { aspects, sentiments, mockAnalytics } from "./src/data/aspects.js";
@@ -22,6 +24,16 @@ const topicsPanel = createTopicsPanel(analyticsApi, {
 let previousAnalysisRange = null;
 let selectedTopicLink = null;
 let detailMonth = null;
+const aspectPreview = createAspectPreview({
+  getView:()=>({categories:currentAnalytics().categories,ids:state.selectedAspects}),
+  onFocus:selectDimension,
+  onToggle:id=>selectAspects(state.selectedAspects.includes(id)?state.selectedAspects.filter(a=>a!==id):[...state.selectedAspects,id])
+});
+const changeProbe = createChangeProbe(analyticsApi,{
+  onClearPreview:()=>aspectPreview.clear(),
+  onAddAspect:id=>{selectDimension(id);jumpToAnalysis("timelinePanel");},
+  onFocusTopic:async (month,id)=>{await topicsPanel.revealMonth(month);if(id==null || !topicsPanel.focusTopic(id))jumpToAnalysis("topicsPanel");}
+});
 function jumpToAnalysis(id) { document.getElementById(id).scrollIntoView({behavior:matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",block:"start"}); }
 function focusAnalysisRange(start, end) {
   if (allMonths[state.start] !== start || allMonths[state.end] !== end) previousAnalysisRange = [state.start,state.end];
@@ -157,6 +169,7 @@ function svgText(x, y, text, attrs = {}) {
 }
 
 function renderTimeline() {
+  changeProbe.setContext({key:[allMonths[state.start],allMonths[state.end],...state.selectedAspects,warehouseSnapshot?.updated_at,!!currentAnalytics().trend.length].join('/'),trend:currentAnalytics().trend.map(r=>({...r,month:typeof r.month === "number"?allMonths[r.month]:r.month})).filter(r=>r.month>=allMonths[state.start]&&r.month<=allMonths[state.end]),ids:state.selectedAspects,label:dimensionName(state.dimension)});
   const svg = $("#timelineSvg");
   const viewport = $("#timelineViewport");
   const width = Math.max(720, viewport.clientWidth);
@@ -209,6 +222,15 @@ function renderTimeline() {
     dot.addEventListener("keydown", event => { if (["Enter", " "].includes(event.key)) { event.preventDefault(); showMonthDetail(index); } });
     dot.addEventListener("pointerenter", event => showTrendTooltip(event, index));
     dot.addEventListener("pointerleave", hideTooltip); svg.append(dot);
+  });
+  changeProbe.changes.forEach(change=>{
+    const index=monthIndex(change.month),cx=x(index),cy=y(emotionScore(monthCounts(index)));
+    const marker=createSvg("circle",{cx,cy,r:9,fill:"none",stroke:change.delta>0?"var(--green)":"var(--red)","stroke-width":2.5,class:"change-marker",tabindex:0,role:"button","aria-label":`${change.month} 评分环比变化 ${change.delta.toFixed(3)}，查看证据`});
+    marker.style.display=changeProbe.active?"":"none";
+    marker.addEventListener("pointerdown",e=>e.stopPropagation());
+    marker.addEventListener("click",e=>{e.stopPropagation();closeTimelineEventPopover();changeProbe.open(change.month);});
+    marker.addEventListener("keydown",e=>{if(["Enter"," "].includes(e.key)){e.preventDefault();changeProbe.open(change.month);}});
+    svg.append(marker);
   });
   const step = Math.max(1, Math.ceil((state.end - state.start + 1) / 10));
   for (let i = state.start; i <= state.end; i += step) svg.append(svgText(x(i), height - margin.bottom + 20, allMonths[i], { fill: "#68778f", "font-size": 10, "text-anchor": "middle" }));
@@ -320,12 +342,13 @@ function renderRadar() {
     const point = t => `${300 + 130 * Math.cos(t)},${210 + 130 * Math.sin(t)}`;
     const path = createSvg("path", { d: `M300,210 L${point(angle)} A130,130 0 ${next-angle > Math.PI ? 1 : 0},1 ${point(next)} Z`, fill: categoryColors[i], stroke: "var(--panel-bg, #fff)", "stroke-width": 2, tabindex: 0, role: "button", "aria-label": `${item.name} ${item.total} 条` });
     path.classList.add("aspect-sector");
+    path.dataset.previewAspect=item.id;
     path.classList.toggle("is-selected", state.selectedAspects.includes(item.id));
     const related = selectedTopicLink?.aspects.includes(item.id);
     path.classList.toggle("is-topic-related", !!related);
     if (selectedTopicLink ? !related : !state.selectedAspects.includes(item.id)) path.setAttribute("opacity", ".3");
     path.setAttribute("aria-pressed", String(state.selectedAspects.includes(item.id)));
-    path.addEventListener("click", () => openCategory(item.id));
+    path.addEventListener("click", () => previewOrOpen(item.id,path));
     path.addEventListener("keydown", event => { if (["Enter", " "].includes(event.key)) { event.preventDefault(); openCategory(item.id); } });
     svg.append(path);
     const middle = (angle + next) / 2;
@@ -343,7 +366,8 @@ function renderRadar() {
       const percentage = createSvg("tspan", { x: endX + side*5, dy: 17, "font-size": 12, fill: label.color });
       percentage.textContent = `${(label.item.total / total * 100).toFixed(1)}%`;
       text.append(percentage);
-      text.addEventListener("click",()=>openCategory(label.item.id));text.addEventListener("keydown",e=>{if(["Enter"," "].includes(e.key)){e.preventDefault();openCategory(label.item.id);}});svg.append(text);
+      text.dataset.previewAspect=label.item.id;
+      text.addEventListener("click",()=>previewOrOpen(label.item.id,text));text.addEventListener("keydown",e=>{if(["Enter"," "].includes(e.key)){e.preventDefault();openCategory(label.item.id);}});svg.append(text);
     });
   });
   if (!total) svg.append(svgText(300,210, analyticsApi.runtime.useMock ? "暂无数据" : "等待后端分类统计数据", {"text-anchor":"middle",fill:"#68778f"}));
@@ -360,6 +384,7 @@ function renderRadar() {
   }
   renderAspectScores(items);
   if (selectedCategory) renderCategoryDetail();
+  aspectPreview.refresh();
 }
 function renderAspectScores(items) {
   const svg = $("#topicRadarSvg"); svg.innerHTML = "";
@@ -381,14 +406,15 @@ function renderAspectScores(items) {
     label.setAttribute("aria-label",`${aspect.name}，评分 ${score.textContent}`);
     if (state.selectedAspects.includes(aspect.id) || selectedTopicLink?.aspects.includes(aspect.id)) label.setAttribute("font-weight","700");
     if (selectedTopicLink && !selectedTopicLink.aspects.includes(aspect.id)) label.setAttribute("opacity",".35");
-    label.addEventListener("click",()=>openCategory(aspect.id));
+    label.dataset.previewAspect=aspect.id;
+    label.addEventListener("click",()=>previewOrOpen(aspect.id,label));
     label.addEventListener("keydown",event=>{if(["Enter"," "].includes(event.key)){event.preventDefault();openCategory(aspect.id);}});
     svg.append(label);
   });
   // Missing categories keep a gap rather than receiving a made-up score.
   const scores = aspects.map(aspect => items.find(item => item.id === aspect.id));
   if (scores.every(item => item?.total)) svg.append(createSvg("polygon", { points: scores.map((item,i) => point(i,radius * (emotionScore(item)+1)/2).join(",")).join(" "), fill:"#8065ff22",stroke:"#8065ff","stroke-width":2.5 }));
-  scores.forEach((item,i) => { if (!item?.total) return; const [cx,cy] = point(i,radius*(emotionScore(item)+1)/2); const dot=createSvg("circle",{cx,cy,r:4,fill:categoryColors[i],tabindex:0,role:"button","aria-label":`${aspects[i].name} 评分 ${emotionScore(item).toFixed(2)}`}); dot.addEventListener("click",()=>openCategory(aspects[i].id)); dot.addEventListener("keydown",e=>{if(["Enter"," "].includes(e.key)){e.preventDefault();openCategory(aspects[i].id);}});svg.append(dot); });
+  scores.forEach((item,i) => { if (!item?.total) return; const [cx,cy] = point(i,radius*(emotionScore(item)+1)/2); const dot=createSvg("circle",{cx,cy,r:4,fill:categoryColors[i],tabindex:0,role:"button","aria-label":`${aspects[i].name} 评分 ${emotionScore(item).toFixed(2)}`}); dot.dataset.previewAspect=aspects[i].id;dot.addEventListener("click",()=>previewOrOpen(aspects[i].id,dot)); dot.addEventListener("keydown",e=>{if(["Enter"," "].includes(e.key)){e.preventDefault();openCategory(aspects[i].id);}});svg.append(dot); });
 
 }
 
@@ -399,7 +425,8 @@ function renderCategoryDetail() {
   $("#categoryTotal").textContent = item ? `${item.total.toLocaleString()} 条` : "暂无统计数据";
   $("#categoryDetails").innerHTML = sentiments.map(s => `<section><h3><i style="background:${s.color}"></i>${s.name}<b>${(item?.[s.key] || 0).toLocaleString()} 条</b></h3></section>`).join("");
 }
-function openCategory(id) { selectDimension(id); selectedCategory = id; renderCategoryDetail(); $("#categoryPopover").hidden = false; $("#closeCategory").focus({preventScroll:true}); }
+function previewOrOpen(id,source){if(matchMedia("(hover: none)").matches)aspectPreview.show(id,source);else openCategory(id);}
+function openCategory(id) { aspectPreview.clear(); selectDimension(id); selectedCategory = id; renderCategoryDetail(); $("#categoryPopover").hidden = false; $("#closeCategory").focus({preventScroll:true}); }
 function renderRankings() {}
 function renderKeywords() {}
 function renderEventDetail() {
@@ -559,6 +586,7 @@ function renderAll() {
 }
 
 function selectDimension(id) {
+  aspectPreview.clear();
   selectedTopicLink = null;
   topicsPanel.clearTopicSelection();
   if (!dimensions.some(item => item.id === id)) return;
@@ -572,6 +600,7 @@ function selectDimension(id) {
 }
 
 function selectAspects(ids) {
+  aspectPreview.clear();
   state.selectedAspects = aspects.map(a=>a.id).filter(id=>ids.includes(id));
   state.dimension = state.selectedAspects.length === 13 ? "overall" : state.selectedAspects.length === 1 ? state.selectedAspects[0] : state.selectedAspects.length ? "custom" : "none";
   selectedTopicLink=null;topicsPanel.clearTopicSelection();
@@ -626,6 +655,7 @@ function closeTimelineEventPopover() {
 }
 
 function setRange(start, end, source = "custom") {
+  aspectPreview.clear();
   selectedTopicLink = null;
   topicsPanel.clearTopicSelection();
   closeTimelineEventPopover();
@@ -893,6 +923,7 @@ systemTheme.addEventListener("change", () => {
 });
 
 $("#refreshButton").addEventListener("click", async () => {
+  aspectPreview.clear();changeProbe.invalidate();
   const button = $("#refreshButton");
   button.classList.add("loading"); button.disabled = true;
   try {

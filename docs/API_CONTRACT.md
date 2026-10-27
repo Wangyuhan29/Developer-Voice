@@ -99,3 +99,10 @@ analyticsApi.getTopics(filters) 和 getKeywords(filters) 始终调用前端 mock
 统计数量及评分仍来自服务器；详情窗口标明“Topic 关键词为 mock”。
 原“Topic 分类”实际为 aspect，页面已改成“方面分类”。
 事件描述、影响数值、单文本推理保留原有演示实现，未接入真实模型接口。
+
+
+## 变化探针与代表语料证据
+
+变化探针直接比较 Dashboard 的相邻月份 categories，组合评分按所选方面标注次数计算。前端仅对变化幅度排序，不做统计显著性检验和事件因果归因。样本量提示以相邻任一月份少于 30 次标注为条件。
+
+证据区不增加后端路由：查询 /topics 固定 run_name，读取对应季度 /topics/{quarter}，再对目标月 /sentiment-facts 最多读取 10 页。代表语料同时满足 corpus_id、created_at UTC 月份与所选方面；情感筛选针对对应方面的真实标签。一条语料跨主题出现时按 corpus_id 去重。原文仅提供已经验证为 HTTPS github.com 的链接。代表语料为空与没有相关讨论不是同一含义。

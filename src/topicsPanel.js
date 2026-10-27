@@ -106,7 +106,7 @@ export function createTopicsPanel(api, { onFocusQuarter = () => {}, onFocusMonth
         const tags = ids.map(id => `<span class="example-aspect-tag${context.aspectIds?.includes(id) ? ' is-related' : ''}">${escape(aspects.find(a=>a.id===id)?.name || id)}</span>`).join('');
         return `<li><div class="example-aspect-tags">${tags}</div><div class="topic-example-meta"><span>${escape(example.repository)} · ${escape(example.source_type)}</span><button class="example-month-link" data-example-month="${escape(example.created_at.slice(0,7))}" aria-label="在时间线查看 ${escape(example.created_at.slice(0,7))}">${dateLabel(example.created_at)} ↗</button></div><p>${escape(example.text)}</p>${url ? `<a href="${escape(url)}" target="_blank" rel="noopener noreferrer">GitHub 原文 ↗</a>` : ""}</li>`;
       }).join("");
-      return `<article class="quarter-topic-card${isRelated ? ' has-related-evidence' : ''}${activeTopic === topic.topic_id ? ' is-linked-topic' : ''}">
+      return `<article data-topic-id="${topic.topic_id}" data-topic-aspects="${link.ids.join(' ')}" class="quarter-topic-card${isRelated ? ' has-related-evidence' : ''}${activeTopic === topic.topic_id ? ' is-linked-topic' : ''}">
         <div class="quarter-topic-top"><span class="quarter-topic-id">主题 ${String(topic.topic_id + 1).padStart(2, "0")}</span><span>${number(topic.document_count)} 条 · ${percent(topic.share_within_quarter)}</span></div>
         <h3>${escape(topic.name)}</h3>
         ${isRelated ? `<div class="topic-relation-badge">${escape(context.aspect)} · ${link.matches} 条代表语料命中</div>` : ''}
@@ -253,6 +253,14 @@ export function createTopicsPanel(api, { onFocusQuarter = () => {}, onFocusMonth
       context = next; rangeView.setContext(next);renderContext();
       if (changed) {onlyRelated=false;activeTopic=null;}
       if (detail) {evidenceTools();renderCards();}
+    },
+    focusTopic(id) {
+      const topic=detail?.topics.find(t=>String(t.topic_id)===String(id));
+      if(!topic)return false;
+      search.value='';onlyRelated=false;activeTopic=topic.topic_id;renderCards();
+      const card=$('topicCards').querySelector(`[data-topic-id="${topic.topic_id}"]`);
+      card?.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'});
+      return true;
     },
     clearTopicSelection() {rangeView.clearTopicSelection();activeTopic=null;if(detail)renderCards();},
     async revealMonth(month) {
