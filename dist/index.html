@@ -15,7 +15,7 @@
         document.documentElement.dataset.theme = resolved;
       })();
     </script>
-    <script type="module" crossorigin src="/assets/index-BB33w4pw.js"></script>
+    <script type="module" crossorigin src="/assets/index-jj57FCgg.js"></script>
     <link rel="stylesheet" crossorigin href="/assets/index-Co-Pk7Hl.css">
   </head>
   <body>
@@ -134,13 +134,10 @@
           <article class="panel dimension-panel" id="dimensionPanel">
             <div class="panel-head small"><div><span class="panel-index">02</span><div><h2>13 大类情感画像</h2><p>画像展示当前时间范围；选择方面后，在 03 查看对应主题线索</p></div></div><span id="profileTotal"></span></div>
             <div id="profileTopicFocus" class="profile-topic-focus" hidden></div><button id="openInvestigation" class="profile-investigate-button">在 03 查看当前方面的主题线索</button>
-            <p class="profile-note">分类占比按方面标注次数统计；一条文本可涉及多个方面。</p>
+            <p class="profile-note">分类占比按方面标注次数统计；一条文本可涉及多个方面。点击饼图分类切换选中状态，可自由组合。</p>
             <div id="aspectPreview" class="aspect-preview"><div><strong id="previewAspectTitle">先预览，再决定关注哪些方面</strong><p id="previewAspectSummary"></p></div><div class="aspect-preview-actions"><button id="previewFocusAspect" disabled>只看此方面</button><button id="previewToggleAspect" disabled>加入当前组合</button><button id="closeAspectPreview" aria-label="结束临时预览" disabled>×</button></div></div><div class="profile-charts"><div><h3>分类数据占比</h3><svg id="pieSvg" viewBox="0 0 600 420" role="img" aria-label="13 大类方面占比饼状图"></svg></div><div><h3>各类情感评分</h3><svg id="topicRadarSvg" viewBox="0 0 600 420" role="img" aria-label="13 类情感评分雷达图"></svg><p class="score-note">中心 −1 · 中间环 0 · 外圈 1</p></div></div>
           </article>
         </section>
-        <aside id="categoryPopover" class="category-popover panel" role="dialog" aria-modal="false" aria-labelledby="categoryTitle" hidden>
-          <button id="closeCategory" class="event-detail-close" aria-label="关闭分类详情">×</button><h2 id="categoryTitle"></h2><p id="categoryRange"></p><div class="category-total">该类总数据量 <strong id="categoryTotal"></strong></div><div id="categoryDetails"></div><button id="viewAspectTrend" class="detail-link-button">在 03 查看此方面的主题线索</button>
-        </aside>
 
         <section class="panel quarterly-topics" id="topicsPanel" aria-labelledby="topicsTitle">
           <div class="panel-head topic-panel-head">

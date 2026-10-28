@@ -328,7 +328,6 @@ function showEventTooltip(event, item) {
 function hideTooltip() { $("#chartTooltip").hidden = true; }
 
 const categoryColors = ["#8065ff", "#49bdf0", "#20b98b", "#efaa50", "#ed687b", "#b978e3", "#508dc9", "#75ae6e", "#dd8c65", "#659eab", "#ab91dd", "#a3ad55", "#c3779d"];
-let selectedCategory = null;
 const escapeHtml = value => String(value).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 function renderRadar() {
   const items = currentAnalytics().categories;
@@ -348,8 +347,8 @@ function renderRadar() {
     path.classList.toggle("is-topic-related", !!related);
     if (selectedTopicLink ? !related : !state.selectedAspects.includes(item.id)) path.setAttribute("opacity", ".3");
     path.setAttribute("aria-pressed", String(state.selectedAspects.includes(item.id)));
-    path.addEventListener("click", () => previewOrOpen(item.id,path));
-    path.addEventListener("keydown", event => { if (["Enter", " "].includes(event.key)) { event.preventDefault(); openCategory(item.id); } });
+    path.addEventListener("click", () => togglePieAspect(item.id));
+    path.addEventListener("keydown", event => { if (["Enter", " "].includes(event.key)) { event.preventDefault(); togglePieAspect(item.id, true); } });
     svg.append(path);
     const middle = (angle + next) / 2;
     pieLabels.push({ item, color:categoryColors[i], side:Math.cos(middle) >= 0 ? 1 : -1, x:300+130*Math.cos(middle), y:210+130*Math.sin(middle), targetY:210+155*Math.sin(middle) });
@@ -367,7 +366,7 @@ function renderRadar() {
       percentage.textContent = `${(label.item.total / total * 100).toFixed(1)}%`;
       text.append(percentage);
       text.dataset.previewAspect=label.item.id;
-      text.addEventListener("click",()=>previewOrOpen(label.item.id,text));text.addEventListener("keydown",e=>{if(["Enter"," "].includes(e.key)){e.preventDefault();openCategory(label.item.id);}});svg.append(text);
+      text.addEventListener("click",()=>togglePieAspect(label.item.id));text.addEventListener("keydown",e=>{if(["Enter"," "].includes(e.key)){e.preventDefault();togglePieAspect(label.item.id,true);}});svg.append(text);
     });
   });
   if (!total) svg.append(svgText(300,210, analyticsApi.runtime.useMock ? "暂无数据" : "等待后端分类统计数据", {"text-anchor":"middle",fill:"#68778f"}));
@@ -383,7 +382,6 @@ function renderRadar() {
     topicFocus.append(text,clear);
   }
   renderAspectScores(items);
-  if (selectedCategory) renderCategoryDetail();
   aspectPreview.refresh();
 }
 function renderAspectScores(items) {
@@ -418,15 +416,15 @@ function renderAspectScores(items) {
 
 }
 
-function renderCategoryDetail() {
-  const item = currentAnalytics().categories.find(item => item.id === selectedCategory);
-  $("#categoryTitle").textContent = dimensionName(selectedCategory);
-  $("#categoryRange").textContent = `${allMonths[state.start]} 至 ${allMonths[state.end]} · ${analyticsApi.runtime.useMock ? "模拟数据" : "查询表统计"}`;
-  $("#categoryTotal").textContent = item ? `${item.total.toLocaleString()} 条` : "暂无统计数据";
-  $("#categoryDetails").innerHTML = sentiments.map(s => `<section><h3><i style="background:${s.color}"></i>${s.name}<b>${(item?.[s.key] || 0).toLocaleString()} 条</b></h3></section>`).join("");
+function togglePieAspect(id, restoreFocus = false) {
+  selectAspects(state.selectedAspects.includes(id) ? state.selectedAspects.filter(value => value !== id) : [...state.selectedAspects, id]);
+  if (restoreFocus) {
+    document.querySelector(`#pieSvg .aspect-sector[data-preview-aspect="${id}"]`)?.focus({preventScroll:true});
+    aspectPreview.clear();
+  }
 }
 function previewOrOpen(id,source){if(matchMedia("(hover: none)").matches)aspectPreview.show(id,source);else openCategory(id);}
-function openCategory(id) { aspectPreview.clear(); selectDimension(id); selectedCategory = id; renderCategoryDetail(); $("#categoryPopover").hidden = false; $("#closeCategory").focus({preventScroll:true}); }
+function openCategory(id) { aspectPreview.clear(); selectDimension(id); }
 function renderRankings() {}
 function renderKeywords() {}
 function renderEventDetail() {
@@ -591,8 +589,6 @@ function selectDimension(id) {
   topicsPanel.clearTopicSelection();
   if (!dimensions.some(item => item.id === id)) return;
   closeTimelineEventPopover();
-  selectedCategory = null;
-  $("#categoryPopover").hidden = true;
   state.selectedAspects = id === "overall" ? aspects.map(a=>a.id) : [id];
   state.dimension = id;
   $("#dimensionSelect").value = id;
@@ -604,7 +600,7 @@ function selectAspects(ids) {
   state.selectedAspects = aspects.map(a=>a.id).filter(id=>ids.includes(id));
   state.dimension = state.selectedAspects.length === 13 ? "overall" : state.selectedAspects.length === 1 ? state.selectedAspects[0] : state.selectedAspects.length ? "custom" : "none";
   selectedTopicLink=null;topicsPanel.clearTopicSelection();
-  selectedCategory=null;$("#categoryPopover").hidden=true;closeTimelineEventPopover();
+  closeTimelineEventPopover();
   $("#dimensionSelect").value=state.dimension;renderAll();
 }
 
@@ -688,20 +684,6 @@ $("#resetView").addEventListener("click", () => {
 $("#clearFilter").addEventListener("click", () => { state.keyword = null; state.dimension = "overall"; state.selectedAspects = aspects.map(a=>a.id); $("#dimensionSelect").value = "overall"; renderAll(); });
 $("#timelineStart").addEventListener("change", event => { if (event.target.value) setRange(monthIndex(event.target.value), state.end); });
 $("#timelineEnd").addEventListener("change", event => { if (event.target.value) setRange(state.start, monthIndex(event.target.value)); });
-// Keep wheel input inside the details panel, including at either scroll boundary.
-$("#categoryPopover").addEventListener("wheel", event => {
-  event.stopPropagation();
-  const panel = event.currentTarget;
-  const atTop = panel.scrollTop <= 0;
-  const atBottom = panel.scrollTop + panel.clientHeight >= panel.scrollHeight - 1;
-  if ((event.deltaY < 0 && atTop) || (event.deltaY > 0 && atBottom)) {
-    event.preventDefault();
-  }
-}, { passive: false });
-$("#closeCategory").addEventListener("click", () => { selectedCategory = null; $("#categoryPopover").hidden = true; });
-document.addEventListener("pointerdown", event => { if (!event.target.closest("#categoryPopover, .category-row, .topic-score, #pieSvg, #topicRadarSvg")) { selectedCategory = null; $("#categoryPopover").hidden = true; } });
-document.addEventListener("keydown", event => { if (event.key === "Escape") { selectedCategory = null; $("#categoryPopover").hidden = true; state.eventPopoverOpen = false; $("#eventDetail").hidden = true; } });
-
 const viewport = $("#timelineViewport");
 let timelineWheelActive = false;
 let wheelGestureLastTime = 0, wheelGestureDelta = 0, wheelZoomLastTime = -Infinity;
@@ -887,11 +869,6 @@ function syncNavigationWithScroll() {
     });
   }
   if (current?.dataset.target === "dimensionPanel" && state.eventPopoverOpen) closeTimelineEventPopover();
-  // Reuse the navigation section boundary to dismiss profile details at section 01.
-  if (current?.dataset.target === "timelinePanel" && selectedCategory) {
-    selectedCategory = null;
-    $("#categoryPopover").hidden = true;
-  }
   navButtons.forEach(button => {
     const active = button === current;
     button.classList.toggle("active", active);
@@ -979,10 +956,6 @@ $("#viewMonthTopics").addEventListener("click", async () => {
   await topicsPanel.revealMonth(month);
   jumpToAnalysis("topicsPanel");
 });
-$("#viewAspectTrend").addEventListener("click", () => {
-  $("#categoryPopover").hidden = true;
-  selectedCategory = null;
-  jumpToAnalysis("topicsPanel");
-});
+
 
 $("#openInvestigation").addEventListener("click",()=>jumpToAnalysis("topicsPanel"));
