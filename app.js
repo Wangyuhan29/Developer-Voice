@@ -1,3 +1,4 @@
+import { toggleAspectSelection } from "./src/aspectSelection.js";
 import { createChangeProbe } from "./src/changeProbe.js";
 import { createAspectPreview } from "./src/aspectPreview.js";
 import { createCombinationSummary } from "./src/combinationSummary.js";
@@ -27,7 +28,7 @@ let detailMonth = null;
 const aspectPreview = createAspectPreview({
   getView:()=>({categories:currentAnalytics().categories,ids:state.selectedAspects}),
   onFocus:selectDimension,
-  onToggle:id=>selectAspects(state.selectedAspects.includes(id)?state.selectedAspects.filter(a=>a!==id):[...state.selectedAspects,id])
+  onToggle:id=>selectAspects(toggleAspectSelection(state.selectedAspects,id,aspects.map(a=>a.id)))
 });
 const changeProbe = createChangeProbe(analyticsApi,{
   onClearPreview:()=>aspectPreview.clear(),
@@ -417,7 +418,7 @@ function renderAspectScores(items) {
 }
 
 function togglePieAspect(id, restoreFocus = false) {
-  selectAspects(state.selectedAspects.includes(id) ? state.selectedAspects.filter(value => value !== id) : [...state.selectedAspects, id]);
+  selectAspects(toggleAspectSelection(state.selectedAspects,id,aspects.map(a=>a.id)));
   if (restoreFocus) {
     document.querySelector(`#pieSvg .aspect-sector[data-preview-aspect="${id}"]`)?.focus({preventScroll:true});
     aspectPreview.clear();

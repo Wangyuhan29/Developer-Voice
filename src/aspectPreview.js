@@ -18,7 +18,7 @@ export function createAspectPreview({getView,onFocus,onToggle}) {
     root.querySelector('#previewAspectSummary').textContent=active?`${item?`${item.total.toLocaleString()} 次标注 · 评分 ${score(item)?.toFixed(2)??'—'}`:'暂无统计'} · 已显示主题中 ${matches} 个有代表语料命中。预览不改变筛选。`:'鼠标经过分类可预览关联；触屏点一下预览，再选择聚焦或加入组合。';
     root.querySelector('#previewFocusAspect').disabled=!active;
     const button=root.querySelector('#previewToggleAspect');button.disabled=!active;
-    button.textContent=active&&view.ids.includes(active)?'从组合移除':'加入当前组合';
+    button.textContent=view.ids.length===aspects.length?'只选此方面':active&&view.ids.includes(active)?'从组合移除':'加入当前组合';
     root.querySelector('#closeAspectPreview').disabled=!active;
     // This compact note also appears next to the themes while browsing the tree.
     const note=document.querySelector('#topicPreviewNote');

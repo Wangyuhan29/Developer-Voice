@@ -1,3 +1,4 @@
+import { toggleAspectSelection } from "./aspectSelection.js";
 import { aspects, sentiments } from './data/aspects.js';
 
 // Navigation groups organize the existing labels; they are not model classes.
@@ -39,7 +40,7 @@ export function createAnalysisExplorer({ onAspect, onSelection, onRestore, onRes
     const aspect = event.target.closest('[data-aspect]');
     if (aspect) {
       const id=aspect.dataset.aspect;
-      onSelection(id === "overall" ? aspects.map(a=>a.id) : view.selectedAspects.includes(id) ? view.selectedAspects.filter(a=>a!==id) : [...view.selectedAspects,id]);
+      onSelection(id === "overall" ? aspects.map(a=>a.id) : toggleAspectSelection(view.selectedAspects,id,aspects.map(a=>a.id)));
     }
     if(event.target.closest('[data-all-aspects]')) onSelection(aspects.map(a=>a.id));
     if(event.target.closest('[data-no-aspects]')) onSelection([]);
