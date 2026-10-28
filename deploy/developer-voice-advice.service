@@ -1,0 +1,20 @@
+[Unit]
+Description=Developer Voice independent GLM advice service
+After=network.target developer-voice-api.service
+
+[Service]
+Type=simple
+User=wyh
+Group=github
+WorkingDirectory=/opt/GITHUB-SENTIMENT/Developer-Voice
+EnvironmentFile=/home/wyh/.config/developer-voice/ai.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/usr/bin/python3 /opt/GITHUB-SENTIMENT/Developer-Voice/server/advice_service.py
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

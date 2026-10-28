@@ -1,3 +1,4 @@
+import {createAiAdvicePanel} from "./aiAdvice.js";
 import {aspects} from './data/aspects.js';
 import {findChanges,aspectChanges,score,matchExamples} from './changeAnalysis.js';
 const escape = value => String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -9,6 +10,7 @@ export function createChangeProbe(api,{onAddAspect,onFocusTopic,onClearPreview})
   const toggle=document.querySelector('#toggleChangeProbe'),list=document.querySelector('#changeProbePoints');
   let active=false,view=null,changes=[],selected=null,version=0,loaded=null,error=null,loading=false,sentiment='all',shown=3;
   const cache=new Map();
+  const aiAdvice=createAiAdvicePanel();
   async function evidence(month) {
     if(cache.has(month))return cache.get(month);
     const task=(async()=>{
@@ -42,7 +44,7 @@ export function createChangeProbe(api,{onAddAspect,onFocusTopic,onClearPreview})
     document.querySelectorAll('.change-marker').forEach(el=>{el.style.display=active?'':'none';});
     list.innerHTML=changes.length ? `<p>当前范围内评分环比变化最大的 ${changes.length} 个月 · 按变化幅度排序，不代表统计显著性</p><div class="change-month-list">${changes.map(c=>`<button data-probe-month="${c.month}" aria-pressed="${selected?.month===c.month}"><span>${c.month}</span><strong class="${c.delta>0?'change-up':'change-down'}">${signed(c.delta,3)}</strong>${c.lowSample?'<small>低样本</small>':''}</button>`).join('')}</div>` : '<p>当前范围内暂无可比较的连续月份，请扩大时间范围或选择有数据的方面。</p>';
   }
-  function close(returnFocus=false){++version;selected=null;loaded=null;drawer.hidden=true;renderList();if(returnFocus)toggle.focus({preventScroll:true});}
+  function close(returnFocus=false){aiAdvice.reset();++version;selected=null;loaded=null;drawer.hidden=true;renderList();if(returnFocus)toggle.focus({preventScroll:true});}
   function renderEvidence(){
     if(!selected)return;
     const focused=document.activeElement;
@@ -55,6 +57,8 @@ export function createChangeProbe(api,{onAddAspect,onFocusTopic,onClearPreview})
       let url=null;try{const u=new URL(ex.github_url);if(u.protocol==='https:'&&u.hostname==='github.com'&&!u.username&&!u.password)url=u.href;}catch{}
       return `<article class="probe-source"><div><span>${escape(ex.repository)} · ${escape(ex.created_at.slice(0,10))}</span><button data-probe-topic="${ex.topicId}">查看所在季度主题</button></div><p>${escape(ex.text.slice(0,240))}${ex.text.length>240?'…':''}</p>${ex.text.length>240?`<details class="probe-full-text"><summary>展开语料预览</summary><p>${escape(ex.text)}</p></details>`:''}<div class="probe-labels">${ex.labels.map(label=>`<span>${escape(name(label.aspect))} / ${{positive:'正面',negative:'负面',neutral:'中性'}[label.sentiment]||'未识别'}</span>`).join('')}</div>${url?`<a href="${escape(url)}" target="_blank" rel="noopener noreferrer">GitHub 原文 ↗</a>`:''}</article>`;
     }).join(''):'<p class="probe-empty">本月暂未匹配到符合条件的季度代表语料；这不表示本月没有相关讨论。可切换情感，或前往 03 查看完整季度线索。</p>'}</div>${examples.length>shown?`<button class="probe-show-more" data-probe-more>再显示 3 条（已展示 ${Math.min(shown,examples.length)} / ${examples.length}）</button>`:''}${loaded&&!loaded.complete?'<p class="probe-caution">本次只核对了前 10,000 条明细，证据覆盖不完整。</p>':''}<button class="probe-quarter-link" data-probe-quarter>到 03 继续追踪本季度主题</button>`;
+    aiAdvice.setContext({key:view.key+"/"+c.month,month:c.month,ids:[...view.ids]});
+    drawer.append(aiAdvice.root);
     if(focusSelector)drawer.querySelector(focusSelector)?.focus({preventScroll:true});
   }
   async function open(month,{scroll=true}={}){

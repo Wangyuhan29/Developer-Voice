@@ -2,3 +2,7 @@
 /node_modules/
 .env.local
 .env.*.local
+
+/server/__pycache__/
+*.sqlite
+ai.env
