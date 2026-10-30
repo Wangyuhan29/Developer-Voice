@@ -3,6 +3,7 @@ Python 3.11+ standard library only; credentials come exclusively from the enviro
 """
 import hashlib
 import json
+import logging
 import os
 import re
 import sqlite3
@@ -25,7 +26,7 @@ ASPECTS = dict(zip(
      '可读性与可维护性','所有权','库与框架','类型系统','学习曲线','社区']))
 MODEL = os.environ.get('GLM_MODEL', 'glm-5.3')
 UPSTREAM = 'https://open.bigmodel.cn/api/paas/v4/chat/completions'
-PROMPT_VERSION = 2
+PROMPT_VERSION = 3
 MAX_DAILY = int(os.environ.get('AI_DAILY_LIMIT', '20'))
 DB_PATH = Path(os.environ.get('AI_CACHE_PATH', str(Path.home()/'.local/share/developer-voice-advice/cache.sqlite')))
 SYSTEM = '''你是 Rust 项目维护与社区反馈分析助手。只依据提供的数据生成中文分析与改进建议。
@@ -38,8 +39,9 @@ range的首月与末月不一定相邻，禁止称为环比，单月区间不声
 建议面向项目维护者，具体可执行，但证据不足时说明，不能捏造已确认缺陷、版本、原因、比例或承诺收益。
 每条解读和建议必须引用输入 sources 中真实存在的 ID。仅有统计证据时建议核对或收集反馈，不能编造具体问题。
 若少于30次标注、样例为空、明细不完整，应在limitations中说明。输出纯JSON，不要Markdown围栏，格式：
-{"summary":{"text":"不超过150字的变化解读","citations":["D0"]},"suggestions":[{"title":"行动标题","action":"不超过120字的建议","verification":"不超过80字的验证方式","citations":["D1","E1"]}],"limitations":["局限说明"]}
-suggestions为1至3条，limitations最多4条。'''
+{"summary":{"text":"不超过150字的变化解读","citations":["D0"]},"suggestions":[{"title":"行动标题","action":"不超过120字的建议","verification":"不超过80字的验证方式","citations":["D0"]}],"limitations":["局限说明"]}
+suggestions为1至3条，limitations尽量不超过4条。citations必须是字符串数组，元素只能为本次输入的证据ID，例如D0，不加方括号、不写逗号合并编号。
+不要复制示例中不存在的编号。具体技术问题必须引用E类语料；没有E类证据时只能给出待核查或补充样本的建议。'''
 
 
 class AdviceError(Exception):
@@ -253,61 +255,110 @@ def build_context(selection):
     return build_range_context(selection) if 'start_date' in selection else build_month_context(selection)
 
 
+class AnalysisValidationError(AdviceError):
+    def __init__(self, reason, kind='structure'):
+        self.reason=reason
+        message={'json':'模型返回的 JSON 格式不完整',
+                 'citations':'模型的证据引用未通过核对',
+                 'structure':'模型返回的建议结构不完整'}[kind]
+        super().__init__(message+'，未展示未经核对的意见，请稍后重试')
+
+
 def validate_analysis(raw, sources):
-    text = raw.strip()
+    if not isinstance(raw,str):raise AnalysisValidationError('response: expected text','json')
+    text=raw.strip()
     if text.startswith('```'):
-        text = re.sub(r'^```(?:json)?\s*|\s*```$', '', text)
-    try:
-        data = json.loads(text)
-        allowed = {s['id'] for s in sources}
-        def citations(item):
-            values = item['citations']
-            if not isinstance(values,list) or not values or any(not isinstance(v,str) or v not in allowed for v in values):
-                raise ValueError('invalid citations')
-            return list(dict.fromkeys(values))
-        def string(value, limit):
-            if not isinstance(value,str) or not value.strip() or len(value)>limit:
-                raise ValueError('invalid text')
-            return value.strip()
-        summary = {'text':string(data['summary']['text'],600),'citations':citations(data['summary'])}
-        suggestions = data['suggestions']
-        if not isinstance(suggestions,list) or not 1<=len(suggestions)<=3:
-            raise ValueError('invalid suggestions')
-        suggestions = [{'title':string(s['title'],100),'action':string(s['action'],700),
-                        'verification':string(s['verification'],500),'citations':citations(s)} for s in suggestions]
-        limitations = data['limitations']
-        if not isinstance(limitations,list) or len(limitations)>4:
-            raise ValueError('invalid limitations')
-        return {'summary':summary,'suggestions':suggestions,'limitations':[string(s,500) for s in limitations]}
-    except (ValueError,KeyError,TypeError) as error:
-        raise AdviceError('模型返回的结构或证据引用不完整，请重新生成') from error
+        text=re.sub(r'^```(?:json)?\s*|\s*```$','',text)
+    try:data=json.loads(text)
+    except ValueError as error:raise AnalysisValidationError('response: invalid JSON','json') from error
+    if not isinstance(data,dict):raise AnalysisValidationError('response: expected object')
+    allowed={source['id'] for source in sources}
+    def citations(item,path):
+        values=item.get('citations')
+        # Normalize presentation only; every ID must still exist in the supplied evidence.
+        if isinstance(values,str):values=[values]
+        if not isinstance(values,list) or not values:
+            raise AnalysisValidationError(path+'.citations: missing references','citations')
+        ids=[]
+        for value in values:
+            if not isinstance(value,str):raise AnalysisValidationError(path+'.citations: expected text IDs','citations')
+            tokens=re.split(r'[\s,，、;；]+',value.strip().strip('[]［］').strip())
+            for token in tokens:
+                identity=token.strip('[]［］').upper()
+                if not re.fullmatch(r'[DE]\d+',identity) or identity not in allowed:
+                    raise AnalysisValidationError(path+'.citations: unknown reference','citations')
+                if identity not in ids:ids.append(identity)
+        return ids
+    def string(value,limit,path):
+        if not isinstance(value,str) or not value.strip():raise AnalysisValidationError(path+': missing text')
+        if len(value)>limit:raise AnalysisValidationError(path+': text too long')
+        return value.strip()
+    def item(value,path):
+        if not isinstance(value,dict):raise AnalysisValidationError(path+': expected object')
+        return value
+    summary=item(data.get('summary'),'summary')
+    summary={'text':string(summary.get('text'),600,'summary.text'),'citations':citations(summary,'summary')}
+    suggestions=data.get('suggestions')
+    if not isinstance(suggestions,list) or not 1<=len(suggestions)<=3:
+        raise AnalysisValidationError('suggestions: expected 1 to 3 items')
+    checked=[]
+    for index,suggestion in enumerate(suggestions):
+        path=f'suggestions[{index}]';suggestion=item(suggestion,path)
+        checked.append({'title':string(suggestion.get('title'),100,path+'.title'),
+                        'action':string(suggestion.get('action'),700,path+'.action'),
+                        'verification':string(suggestion.get('verification'),500,path+'.verification'),
+                        'citations':citations(suggestion,path)})
+    limitations=data.get('limitations',[])
+    if not isinstance(limitations,list) or len(limitations)>12:
+        raise AnalysisValidationError('limitations: expected at most 12 notes')
+    return {'summary':summary,'suggestions':checked,
+            'limitations':[string(value,500,f'limitations[{index}]') for index,value in enumerate(limitations)]}
 
 
-def call_glm(context):
-    key = os.environ.get('GLM_API_KEY','')
-    if not key:
-        raise AdviceError('服务器尚未配置 GLM 密钥')
-    payload = {'model':MODEL,'messages':[{'role':'system','content':SYSTEM},
-               {'role':'user','content':json.dumps(context,ensure_ascii=False)}],
-               'reasoning_effort':'low','thinking':{'type':'enabled'},'max_tokens':5000,
-               'response_format':{'type':'json_object'},'stream':False}
-    request = Request(UPSTREAM,data=json.dumps(payload,ensure_ascii=False).encode(),
-                      headers={'Content-Type':'application/json','Authorization':'Bearer '+key})
+def request_glm(messages, timeout=150):
+    key=os.environ.get('GLM_API_KEY','')
+    if not key:raise AdviceError('服务器尚未配置 GLM 密钥')
+    payload={'model':MODEL,'messages':messages,'temperature':0.2,
+             'reasoning_effort':'low','thinking':{'type':'enabled'},'max_tokens':5000,
+             'response_format':{'type':'json_object'},'stream':False}
+    request=Request(UPSTREAM,data=json.dumps(payload,ensure_ascii=False).encode(),
+                    headers={'Content-Type':'application/json','Authorization':'Bearer '+key})
     try:
-        with urlopen(request,timeout=150) as response:
-            data = json.loads(response.read(500_001))
+        with urlopen(request,timeout=timeout) as response:data=json.loads(response.read(500_001))
     except HTTPError as error:
-        labels = {401:'密钥无效或无权限',402:'账户余额不足',429:'调用额度或频率受限',400:'模型或调用参数不可用'}
+        labels={401:'密钥无效或无权限',402:'账户余额不足',429:'调用额度或频率受限',400:'模型或调用参数不可用'}
         raise AdviceError(f'GLM 调用失败（HTTP {error.code}）：{labels.get(error.code,"服务暂不可用")}') from error
     except (URLError,TimeoutError,ValueError) as error:
         raise AdviceError('GLM 响应超时或连接失败，请稍后重试') from error
     try:
-        choice = data['choices'][0]
-        if choice.get('finish_reason')!='stop':
-            raise AdviceError('GLM 输出未完成，请重新生成')
-        return validate_analysis(choice['message']['content'],context['sources'])
+        choice=data['choices'][0]
+        if choice.get('finish_reason')!='stop':raise AdviceError('GLM 输出未完成，请重新生成')
+        return choice['message']['content']
     except (KeyError,TypeError,IndexError) as error:
         raise AdviceError('GLM 未返回有效建议，请稍后重试') from error
+
+
+def call_glm(context, reserve_retry=None):
+    allowed=[source['id'] for source in context['sources']]
+    messages=[{'role':'system','content':SYSTEM+'\n本次唯一允许引用的证据ID：'+json.dumps(allowed)},
+              {'role':'user','content':json.dumps(context,ensure_ascii=False)}]
+    started=time.monotonic()
+    raw=request_glm(messages)
+    try:return validate_analysis(raw,context['sources'])
+    except AnalysisValidationError as error:
+        logging.warning('GLM validation failed: %s',error.reason)
+        if reserve_retry is None:raise
+        remaining=180-(time.monotonic()-started)
+        if remaining<10:raise
+        reserve_retry()
+        messages.extend([{'role':'assistant','content':raw[:20000] if isinstance(raw,str) else ''},
+                         {'role':'user','content':'上份结果未通过校验：'+error.reason+
+                          '。只修正输出结构与真实证据引用，不补造编号；无证据支撑的建议请删除或降为待核查。返回完整JSON，引用仅限：'+json.dumps(allowed)}])
+        corrected=request_glm(messages, timeout=min(60,remaining))
+        try:return validate_analysis(corrected,context['sources'])
+        except AnalysisValidationError as second:
+            logging.warning('GLM correction failed: %s',second.reason)
+            raise
 
 
 class Store:
@@ -373,7 +424,7 @@ class Manager:
             if not result:
                 self.store.reserve()
                 self.update(job_id,stage='GLM-5.3 正在分析变化与改进方向')
-                analysis=call_glm(context)
+                analysis=call_glm(context, reserve_retry=self.store.reserve)
                 result={'analysis':analysis,'sources':context['sources'],'model':MODEL,
                         **{field:context[field] for field in ['mode','month','previous_month','start_date','end_date','sampled_quarters','available_quarters','facts_complete'] if field in context},
                         'aspects':context['aspects'],'data_version':context['data_version'],

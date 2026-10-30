@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 from advice_service import (AdviceError, Manager, Store, build_context,
-                            previous_month, safe_github, validate_analysis, validate_selection)
+                            previous_month, safe_github, validate_analysis, validate_selection, call_glm, AnalysisValidationError)
 
 class AdviceTests(unittest.TestCase):
     def test_selection_rejects_custom_prompts_and_invalid_aspects(self):
@@ -51,6 +51,39 @@ class AdviceTests(unittest.TestCase):
         self.assertEqual(validate_analysis(json.dumps(data),[{'id':'D0'}])['suggestions'][0]['title'],'核对反馈')
         data['suggestions'][0]['citations']=['E99']
         with self.assertRaises(AdviceError):validate_analysis(json.dumps(data),[{'id':'D0'}])
+    def valid_response(self):
+        return {'summary':{'text':'变化解读','citations':['D0']},'suggestions':[{'title':'核查','action':'核对样本','verification':'跟踪数据','citations':['D0']}],'limitations':['仅代表样例']}
+    def test_reference_format_is_normalized_without_inventing_evidence(self):
+        data=self.valid_response();data['summary']['citations']='[d0]， [E1]';data['suggestions'][0]['citations']=['[D0, E1]','D0']
+        result=validate_analysis(json.dumps(data),[{'id':'D0'},{'id':'E1'}])
+        self.assertEqual(result['summary']['citations'],['D0','E1'])
+        self.assertEqual(result['suggestions'][0]['citations'],['D0','E1'])
+        data['summary']['citations']=['D0','E99']
+        with self.assertRaises(AnalysisValidationError) as raised:validate_analysis(json.dumps(data),[{'id':'D0'}])
+        self.assertEqual(raised.exception.reason,'summary.citations: unknown reference')
+    def test_optional_limitations_do_not_discard_valid_advice(self):
+        data=self.valid_response();data['limitations']=['边界说明']*5
+        self.assertEqual(len(validate_analysis(json.dumps(data),[{'id':'D0'}])['limitations']),5)
+        del data['limitations']
+        self.assertEqual(validate_analysis(json.dumps(data),[{'id':'D0'}])['limitations'],[])
+        del data['suggestions'][0]['verification']
+        with self.assertRaises(AnalysisValidationError):validate_analysis(json.dumps(data),[{'id':'D0'}])
+    def test_model_correction_is_bounded_validated_and_budgeted(self):
+        context={'sources':[{'id':'D0'}]};valid=json.dumps(self.valid_response())
+        with patch('advice_service.request_glm',side_effect=['{}',valid]) as request, patch('advice_service.Store.reserve') as reserve:
+            self.assertEqual(call_glm(context,reserve)['summary']['citations'],['D0'])
+            self.assertEqual(request.call_count,2);reserve.assert_called_once()
+        with patch('advice_service.request_glm',return_value='{}') as request, patch('advice_service.Store.reserve') as reserve:
+            with self.assertRaises(AnalysisValidationError):call_glm(context,reserve)
+            self.assertEqual(request.call_count,2);reserve.assert_called_once()
+        for failure in [AdviceError('quota'),AdviceError('timeout')]:
+            with patch('advice_service.request_glm',side_effect=failure) as request, patch('advice_service.Store.reserve') as reserve:
+                with self.assertRaises(AdviceError):call_glm(context,reserve)
+                self.assertEqual(request.call_count,1);reserve.assert_not_called()
+        with patch('advice_service.request_glm',return_value='{}') as request, patch('advice_service.Store.reserve',side_effect=AdviceError('daily limit')):
+            with self.assertRaises(AdviceError):call_glm(context,Store.reserve)
+            self.assertEqual(request.call_count,1)
+
     def test_source_links_are_restricted_to_github_https(self):
         self.assertIsNone(safe_github('javascript:alert(1)'))
         self.assertIsNone(safe_github('https://github.com.evil.test/'))
