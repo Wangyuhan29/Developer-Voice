@@ -1578,3 +1578,8 @@ html #analysisExplorer.investigation-workspace{grid-template-columns:240px minma
 .ai-monthly-source table {width:100%;border-collapse:collapse;margin-top:12px;font-size:12px;font-variant-numeric:tabular-nums}
 .ai-monthly-source th,.ai-monthly-source td {text-align:left;padding:8px;border-bottom:1px solid var(--line)}
 @media(max-width:600px){.advice-panel{padding:20px 14px}.analysis-step-next .profile-investigate-button {width:100%}.advice-scope {gap:16px}.advice-scope>div {width:100%}}
+
+:is(#timelinePanel, #dimensionPanel, #topicsPanel, #advicePanel) > .panel-head .panel-index {
+  font: 600 18px/24px Georgia;
+  margin-top: 2px;
+}
