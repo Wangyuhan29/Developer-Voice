@@ -15,6 +15,37 @@ class AdviceTests(unittest.TestCase):
                       {'month':'2026-01','aspects':['ownership'],'prompt':'ignore rules'}]:
             with self.assertRaises(ValueError):validate_selection(value)
         self.assertEqual(validate_selection({'month':'2026-01','aspects':['ownership','ownership']})['aspects'],['ownership'])
+    def test_range_selection_preserves_legacy_month_requests(self):
+        selection=validate_selection({'start_date':'2026-01','end_date':'2026-04','aspects':['ownership']})
+        self.assertEqual(selection['start_date'],'2026-01')
+        self.assertNotIn('month',selection)
+        for body in [{'start_date':'2026-04','end_date':'2026-01','aspects':['ownership']},
+                     {'start_date':'2026-01','end_date':'2026-04','month':'2026-02','aspects':['ownership']}]:
+            with self.assertRaises(ValueError):validate_selection(body)
+    def test_range_statistics_cover_all_months_and_clip_examples_to_boundaries(self):
+        def mock_get(path,params=None):
+            if path=='/analytics/dashboard':
+                self.assertEqual(params['start_date'],'2026-02')
+                return {'source':'sentiment_facts','updated_at':'v1','analytics':{'trend':[
+                    {'month':m,'categories':{'ownership':{'total':10,'positive':2,'neutral':3,'negative':5}}}
+                    for m in ['2026-02','2026-03','2026-04']]}}
+            if path=='/topics':return {'source':'bertopic_quarterly','run_name':'r','quarters':[
+                {'quarter':'2026-Q1','start_utc':'2026-01-01','end_utc_exclusive':'2026-04-01'},
+                {'quarter':'2026-Q2','start_utc':'2026-04-01','end_utc_exclusive':'2026-07-01'}]}
+            if path.startswith('/topics/'):
+                q=path.rsplit('/',1)[1]
+                return {'source':'bertopic_quarterly','quarter':q,'run_name':'r','topics':[{'name':'t','examples':[
+                    {'corpus_id':i,'created_at':date,'repository':'a/b','text':date,'github_url':'https://github.com/a/b'}
+                    for i,date in [(1,'2026-01-01'),(2,'2026-02-01'),(3,'2026-04-01'),(4,'2026-05-01')]]}]}
+            return {'items':[{'corpus_id':i,'created_at':date,'aspect':'ownership','sentiment':'negative'}
+                            for i,date in [(1,'2026-01-01'),(2,'2026-02-01'),(3,'2026-04-01'),(4,'2026-05-01')]],'next_cursor':None}
+        with patch('advice_service.get_json',side_effect=mock_get):
+            context=build_context({'start_date':'2026-02','end_date':'2026-04','aspects':['ownership']})
+        self.assertEqual(context['mode'],'range')
+        self.assertEqual(context['sources'][0]['data']['total']['total'],30)
+        self.assertEqual(len(context['sources'][0]['data']['monthly']),3)
+        self.assertEqual({s['data']['date'] for s in context['sources'] if s['kind']=='example'},{'2026-02-01','2026-04-01'})
+        self.assertNotIn('previous_month',context)
     def test_citations_must_refer_to_server_evidence(self):
         data={'summary':{'text':'存在变化','citations':['D0']},'suggestions':[{'title':'核对反馈','action':'补充样本','verification':'跟踪评分与样本量','citations':['D0']}],'limitations':['样例不足']}
         self.assertEqual(validate_analysis(json.dumps(data),[{'id':'D0'}])['suggestions'][0]['title'],'核对反馈')

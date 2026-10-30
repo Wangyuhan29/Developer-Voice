@@ -1563,3 +1563,18 @@ html #analysisExplorer.investigation-workspace{grid-template-columns:240px minma
 .ai-evidence {margin-top:20px;border-top:1px solid var(--line);padding-top:16px}.ai-evidence summary {cursor:pointer;font-size:13px;font-weight:600}.ai-evidence summary span {color:var(--muted);font-size:11px;margin-left:10px}.ai-evidence article {padding:18px 0;border-bottom:1px solid var(--line);scroll-margin-top:160px}.ai-evidence h5 span {color:var(--purple);margin-right:6px}.ai-evidence p {font-size:12px;line-height:1.9;white-space:pre-line;max-width:80ch;margin:6px 0}.ai-evidence a{font-size:12px;color:var(--purple)}.ai-source-meta,.ai-source-stat{color:var(--muted)}
 .ai-generate:focus-visible,.ai-citation:focus-visible,.ai-evidence summary:focus-visible {outline:2px solid var(--purple);outline-offset:3px}
 @media(max-width:600px){.ai-advice-heading {flex-direction:column;gap:12px}.ai-generate{width:100%}.ai-recommendations>article {grid-template-columns:24px 1fr;gap:6px}}
+
+/* Four steps share the existing visual system and global analysis scope. */
+.analysis-step-next {display:flex;justify-content:flex-end;gap:12px;margin-top:22px;padding-top:18px;border-top:1px solid var(--line)}
+.analysis-step-next .profile-investigate-button {margin:0}
+.advice-panel {padding:24px;margin-top:20px;scroll-margin-top:150px}
+.advice-panel>.panel-head {padding:0;margin-bottom:22px}
+.advice-scope {display:flex;align-items:flex-start;flex-wrap:wrap;gap:18px 32px;padding:18px 0;border-block:1px solid var(--line)}
+.advice-scope>div {display:flex;flex-direction:column;gap:7px;min-width:0}.advice-scope>div:nth-child(2){flex:1;min-width:180px}
+.advice-scope span {color:var(--muted);font-size:12px}.advice-scope strong {font-size:14px;line-height:1.8;overflow-wrap:anywhere}
+.advice-scope-note,.ai-result-scope {font-size:12px;line-height:1.9;color:var(--muted)}
+.advice-panel .ai-advice-panel {margin-top:18px;padding-top:0;border-top:0}
+.ai-stale-notice {font-size:13px;line-height:1.8;color:var(--text);padding:12px 0;border-block:1px solid var(--line)}
+.ai-monthly-source table {width:100%;border-collapse:collapse;margin-top:12px;font-size:12px;font-variant-numeric:tabular-nums}
+.ai-monthly-source th,.ai-monthly-source td {text-align:left;padding:8px;border-bottom:1px solid var(--line)}
+@media(max-width:600px){.advice-panel{padding:20px 14px}.analysis-step-next .profile-investigate-button {width:100%}.advice-scope {gap:16px}.advice-scope>div {width:100%}}

@@ -15,8 +15,8 @@
         document.documentElement.dataset.theme = resolved;
       })();
     </script>
-    <script type="module" crossorigin src="/assets/index-CnCTeo4Q.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-DBRIgKGD.css">
+    <script type="module" crossorigin src="/assets/index-CFf7VDep.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-veY7Q16E.css">
   </head>
   <body>
 
@@ -28,6 +28,7 @@
         <button aria-label="维度画像" title="维度画像" data-target="dimensionPanel"><i>◇</i><span>维度画像</span></button>
         <button data-target="topicsPanel" aria-label="方面与主题" title="方面与主题"><i>▦</i><span>方面与主题</span></button>
         
+        <button data-target="advicePanel" aria-label="改进意见" title="改进意见"><i><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M5 4h14v12H9l-4 4V4Z"/><path d="m8 10 3 3 5-6"/></svg></i><span>改进意见</span></button>
       </nav>
     </aside>
 
@@ -124,6 +125,7 @@
           </div>
           <div id="changeProbe" class="change-probe"><div class="change-probe-toolbar"><div><strong>沿着变化寻找线索</strong><span>从月度评分到方面、主题与语料</span></div><button id="toggleChangeProbe" aria-pressed="false">发现变化</button></div><div id="changeProbePoints" hidden></div></div>
           <section id="changeEvidence" class="change-evidence" aria-labelledby="probeTitle" hidden></section>
+          <div class="analysis-step-next"><button id="chooseAspectsStep" class="profile-investigate-button">在 02 中选择方面</button></div>
         </section>
 
         <section class="analysis-scope" aria-label="当前分析范围">
@@ -168,6 +170,14 @@
           </div>
           </div><div id="topicRangeView" hidden></div>
           </div></div>
+          <div class="analysis-step-next"><button id="openAdvice" class="profile-investigate-button">在 04 中查看改进意见</button></div>
+        </section>
+
+        <section class="panel advice-panel" id="advicePanel" aria-labelledby="adviceTitle">
+          <div class="panel-head"><div><span class="panel-index">04</span><div><h2 id="adviceTitle">改进意见</h2><p>结合所选时间、方面与主题线索，形成可核对的行动建议</p></div></div></div>
+          <div class="advice-scope"><div><span id="adviceMode">区间分析</span><strong id="advicePeriod"></strong></div><div><span>所选方面</span><strong id="adviceAspects">全部方面</strong></div><button id="adviceUseRange" class="tool-button" hidden>返回整个选定区间</button></div>
+          <p class="advice-scope-note">区间统计覆盖整个选定范围；代表语料是核对后的样例，不能代表全部讨论或问题频率。</p>
+          <div id="adviceMount"></div>
         </section>
 
         <footer>

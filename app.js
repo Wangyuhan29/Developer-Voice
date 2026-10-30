@@ -1,3 +1,4 @@
+import { createAiAdvicePanel } from "./src/aiAdvice.js";
 import { toggleAspectSelection } from "./src/aspectSelection.js";
 import { createChangeProbe } from "./src/changeProbe.js";
 import { createAspectPreview } from "./src/aspectPreview.js";
@@ -25,12 +26,26 @@ const topicsPanel = createTopicsPanel(analyticsApi, {
 let previousAnalysisRange = null;
 let selectedTopicLink = null;
 let detailMonth = null;
+let adviceMonth = null, adviceScopeKey = null;
+const aiAdvice = createAiAdvicePanel();
+document.querySelector('#adviceMount').append(aiAdvice.root);
+function renderAdviceContext(){
+  const start=allMonths[state.start],end=allMonths[state.end];
+  const scopeKey=[start,end,...state.selectedAspects].join('/');
+  if(scopeKey!==adviceScopeKey){adviceMonth=null;adviceScopeKey=scopeKey;}
+  document.querySelector('#adviceMode').textContent=adviceMonth?'月度环比分析':'整个选定区间';
+  document.querySelector('#advicePeriod').textContent=adviceMonth || `${start} — ${end}`;
+  document.querySelector('#adviceAspects').textContent=state.selectedAspects.length===13?'全部 13 类方面':state.selectedAspects.length?aspects.filter(a=>state.selectedAspects.includes(a.id)).map(a=>a.name).join('、'):'尚未选择方面';
+  document.querySelector('#adviceUseRange').hidden=!adviceMonth;
+  aiAdvice.setContext({start,end,month:adviceMonth,ids:[...state.selectedAspects],key:[scopeKey,adviceMonth||'range',warehouseSnapshot?.updated_at||''].join('/')});
+}
 const aspectPreview = createAspectPreview({
   getView:()=>({categories:currentAnalytics().categories,ids:state.selectedAspects}),
   onFocus:selectDimension,
   onToggle:id=>selectAspects(toggleAspectSelection(state.selectedAspects,id,aspects.map(a=>a.id)))
 });
 const changeProbe = createChangeProbe(analyticsApi,{
+  onAdvice:month=>{renderAdviceContext();adviceMonth=month;renderAdviceContext();jumpToAnalysis("advicePanel");},
   onClearPreview:()=>aspectPreview.clear(),
   onAddAspect:id=>{selectDimension(id);jumpToAnalysis("timelinePanel");},
   onFocusTopic:async (month,id)=>{await topicsPanel.revealMonth(month);if(id==null || !topicsPanel.focusTopic(id))jumpToAnalysis("topicsPanel");}
@@ -53,6 +68,7 @@ function renderExplorerOnly() {
 }
 function renderAnalysisContext() {
   renderExplorerOnly();
+  renderAdviceContext();
   topicsPanel.setContext({aspect:dimensionName(state.dimension),aspectId:state.dimension,aspectIds:state.selectedAspects,isFiltered:state.dimension !== "overall"});
 }
 
@@ -960,3 +976,7 @@ $("#viewMonthTopics").addEventListener("click", async () => {
 
 
 $("#openInvestigation").addEventListener("click",()=>jumpToAnalysis("topicsPanel"));
+
+$("#chooseAspectsStep").addEventListener("click",()=>jumpToAnalysis("dimensionPanel"));
+$("#openAdvice").addEventListener("click",()=>{adviceMonth=null;renderAdviceContext();jumpToAnalysis("advicePanel");});
+$("#adviceUseRange").addEventListener("click",()=>{adviceMonth=null;renderAdviceContext();});
